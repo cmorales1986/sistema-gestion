@@ -1,33 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getToken } from 'next-auth/jwt'
+import { auth } from '@/auth'
+import { NextResponse } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const token = await getToken({
-    req,
-    secret: process.env.AUTH_SECRET,
-    salt: process.env.AUTH_URL
-      ? `${new URL(process.env.AUTH_URL).hostname}:authjs.session-token`
-      : 'authjs.session-token',
-  })
+export default auth((req) => {
+  const { nextUrl } = req
+  const isLoggedIn = !!req.auth
 
-  const { pathname } = req.nextUrl
+  const isAuthRoute = nextUrl.pathname.startsWith('/login') ||
+                      nextUrl.pathname.startsWith('/registro') ||
+                      nextUrl.pathname.startsWith('/forgot-password')
 
-  const isAuthRoute = pathname.startsWith('/login') ||
-                      pathname.startsWith('/registro') ||
-                      pathname.startsWith('/forgot-password')
+  const isPublicRoute = nextUrl.pathname === '/'
 
-  const isPublicRoute = pathname === '/'
-
-  if (!token && !isAuthRoute && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', req.url))
+  if (!isLoggedIn && !isAuthRoute && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', nextUrl))
   }
 
-  if (token && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+  if (isLoggedIn && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', nextUrl))
   }
 
   return NextResponse.next()
-}
+})
 
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
