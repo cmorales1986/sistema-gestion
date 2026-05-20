@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── PLANES ──────────────────────────────────────────────────────────────────
+model Plan {
+  id          String    @id @default(cuid())
+  nombre      String
+  precio      Int
+  descripcion String?
+  activo      Boolean   @default(true)
+  empresas    Empresa[]
+  createdAt   DateTime  @default(now())
+}
+
+// ─── EMPRESAS (tenants) ───────────────────────────────────────────────────────
+model Empresa {
+  id                String            @id @default(cuid())
+  nombre            String
+  slug              String            @unique
+  logoUrl           String?
+  colorPrimario     String            @default("#1E3A5F")
+  colorSecundario   String            @default("#2E6DA4")
+  estado            EstadoEmpresa     @default(TRIAL)
+  fechaVencimiento  DateTime
+  planId            String
+  plan              Plan              @relation(fields: [planId], references: [id])
+  usuarios          Usuario[]
+  categorias        Categoria[]
+  articulos         Articulo[]
+  proveedores       Proveedor[]
+  clientes          Cliente[]
+  compras           Compra[]
+  ventas            Venta[]
+  almacenes         Almacen[]
+  condicionesPago   CondicionPago[]
+  impuestos         Impuesto[]
+  monedas           Moneda[]
+  tiposCambio       TipoCambio[]
+  periodosContables PeriodoContable[]
+  timbrados  Timbrado[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+enum EstadoEmpresa {
+  TRIAL
+  ACTIVO
+  SUSPENDIDO
+}
+
+// ─── USUARIOS ────────────────────────────────────────────────────────────────
+model Usuario {
+  id        String     @id @default(cuid())
+  nombre    String
+  email     String     @unique
+  password  String
+  rol       RolUsuario @default(OPERADOR)
+  activo    Boolean    @default(true)
+  empresaId String
+  empresa   Empresa    @relation(fields: [empresaId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+enum RolUsuario {
+  SUPERADMIN
+  ADMIN
+  OPERADOR
+}
+
+// ─── MISCELANEOS ─────────────────────────────────────────────────────────────
+
+model CondicionPago {
+  id        String   @id @default(cuid())
+  nombre    String   // "Contado", "Crédito 30 días", etc.
+  dias      Int      @default(0) // 0 = contado
+  activo    Boolean  @default(true)
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  compras   Compra[]
+  ventas    Venta[]
+  createdAt DateTime @default(now())
+}
+
+model Impuesto {
+  id             String         @id @default(cuid())
+  nombre         String         // "IVA 10%", "IVA 5%", "Exenta"
+  porcentaje     Float          @default(0)
+  activo         Boolean        @default(true)
+  empresaId      String
+  empresa        Empresa        @relation(fields: [empresaId], references: [id])
+  articulos      Articulo[]
+  compraDetalles CompraDetalle[]
+  ventaDetalles  VentaDetalle[]
+  createdAt      DateTime       @default(now())
+}
+
+model Moneda {
+  id          String       @id @default(cuid())
+  codigo      String       // "PYG", "USD", "BRL"
+  nombre      String       // "Guaraní", "Dólar", "Real"
+  simbolo     String       // "Gs.", "$", "R$"
+  principal   Boolean      @default(false)
+  activo      Boolean      @default(true)
+  empresaId   String
+  empresa     Empresa      @relation(fields: [empresaId], references: [id])
+  tiposCambio TipoCambio[]
+  compras     Compra[]
+  ventas      Venta[]
+  createdAt   DateTime     @default(now())
+
+  @@unique([codigo, empresaId])
+}
+
+model TipoCambio {
+  id        String   @id @default(cuid())
+  fecha     DateTime
+  valor     Float    // cuántos Gs. vale 1 unidad de esta moneda
+  monedaId  String
+  moneda    Moneda   @relation(fields: [monedaId], references: [id])
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([monedaId, fecha])
+}
+
+model PeriodoContable {
+  id          String        @id @default(cuid())
+  nombre      String        // "Enero 2025", "Q1 2025"
+  fechaInicio DateTime
+  fechaFin    DateTime
+  estado      EstadoPeriodo @default(ABIERTO)
+  empresaId   String
+  empresa     Empresa       @relation(fields: [empresaId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum EstadoPeriodo {
+  ABIERTO
+  CERRADO
+}
+
+// ─── ALMACENES ───────────────────────────────────────────────────────────────
+model Almacen {
+  id          String   @id @default(cuid())
+  nombre      String
+  descripcion String?
+  activo      Boolean  @default(true)
+  empresaId   String
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
+  stock       Stock[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── CATEGORIAS ──────────────────────────────────────────────────────────────
+model Categoria {
+  id        String     @id @default(cuid())
+  nombre    String
+  activo    Boolean    @default(true)
+  empresaId String
+  empresa   Empresa    @relation(fields: [empresaId], references: [id])
+  articulos Articulo[]
+  createdAt DateTime   @default(now())
+}
+
+// ─── ARTICULOS ───────────────────────────────────────────────────────────────
+model Articulo {
+  id             String          @id @default(cuid())
+  codigo         String?
+  nombre         String
+  descripcion    String?
+  unidadMedida   String          @default("unidad")
+  inventariable  Boolean         @default(true)
+  stockMinimo    Float           @default(0)
+  precioCompra   Float?
+  precioVenta    Float?
+  impuestoId     String?
+  impuesto       Impuesto?       @relation(fields: [impuestoId], references: [id])
+  activo         Boolean         @default(true)
+  categoriaId    String?
+  categoria      Categoria?      @relation(fields: [categoriaId], references: [id])
+  empresaId      String
+  empresa        Empresa         @relation(fields: [empresaId], references: [id])
+  stock          Stock[]
+  compraDetalles CompraDetalle[]
+  ventaDetalles  VentaDetalle[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+// ─── STOCK ───────────────────────────────────────────────────────────────────
+model Stock {
+  id         String   @id @default(cuid())
+  cantidad   Float    @default(0)
+  articuloId String
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  almacenId  String
+  almacen    Almacen  @relation(fields: [almacenId], references: [id])
+  updatedAt  DateTime @updatedAt
+
+  @@unique([articuloId, almacenId])
+}
+
+// ─── PROVEEDORES ─────────────────────────────────────────────────────────────
+model Proveedor {
+  id        String    @id @default(cuid())
+  nombre    String
+  ruc       String?
+  telefono  String?
+  email     String?
+  direccion String?
+  activo    Boolean   @default(true)
+  empresaId String
+  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  compras   Compra[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// ─── CLIENTES ────────────────────────────────────────────────────────────────
+model Cliente {
+  id        String   @id @default(cuid())
+  nombre    String
+  ruc       String?
+  telefono  String?
+  email     String?
+  direccion String?
+  activo    Boolean  @default(true)
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  ventas    Venta[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── COMPRAS (cabecera) ───────────────────────────────────────────────────────
+model Compra {
+  id               String             @id @default(cuid())
+  nroComprobante   String?
+  tipoComprobante  TipoComprobante    @default(FACTURA)
+  fecha            DateTime
+  condicionPagoId  String?
+  condicionPago    CondicionPago?     @relation(fields: [condicionPagoId], references: [id])
+  fechaVencimiento DateTime?
+  monedaId         String?
+  moneda           Moneda?            @relation(fields: [monedaId], references: [id])
+  tipoCambio       Float              @default(1)
+  subtotal         Float
+  descuento        Float              @default(0)
+  totalIva5        Float              @default(0)
+  totalIva10       Float              @default(0)
+  total            Float
+  estadoPago       EstadoPago         @default(PENDIENTE)
+  montoPagado      Float              @default(0)
+  estado           EstadoDoc          @default(CONFIRMADA)
+  observacion      String?
+  proveedorId      String
+  proveedor        Proveedor          @relation(fields: [proveedorId], references: [id])
+  empresaId        String
+  empresa          Empresa            @relation(fields: [empresaId], references: [id])
+  detalles         CompraDetalle[]
+  notasCredito     NotaCreditoCompra[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+// ─── COMPRA DETALLE ───────────────────────────────────────────────────────────
+model CompraDetalle {
+  id             String    @id @default(cuid())
+  cantidad       Float
+  precioUnitario Float
+  descuento      Float     @default(0)
+  impuestoId     String?
+  impuesto       Impuesto? @relation(fields: [impuestoId], references: [id])
+  subtotal       Float
+  total          Float
+  compraId       String
+  compra         Compra    @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  articuloId     String
+  articulo       Articulo  @relation(fields: [articuloId], references: [id])
+  createdAt      DateTime  @default(now())
+}
+
+// ─── NOTA DE CREDITO COMPRA ───────────────────────────────────────────────────
+model NotaCreditoCompra {
+  id             String                     @id @default(cuid())
+  nroComprobante String?
+  fecha          DateTime
+  tipo           TipoNotaCredito
+  motivo         String?
+  montoTotal     Float
+  estado         EstadoDoc                  @default(CONFIRMADA)
+  compraId       String
+  compra         Compra                     @relation(fields: [compraId], references: [id])
+  detalles       NotaCreditoCompraDetalle[]
+  createdAt      DateTime                   @default(now())
+}
+
+model NotaCreditoCompraDetalle {
+  id                  String            @id @default(cuid())
+  cantidad            Float?
+  precioUnitario      Float?
+  montoAjuste         Float
+  motivo              String?
+  articuloId          String?
+  notaCreditoCompraId String
+  notaCreditoCompra   NotaCreditoCompra @relation(fields: [notaCreditoCompraId], references: [id], onDelete: Cascade)
+  createdAt           DateTime          @default(now())
+}
+
+// ─── VENTAS (cabecera) ────────────────────────────────────────────────────────
+model Venta {
+  id               String            @id @default(cuid())
+  nroComprobante   String?
+  tipoComprobante  TipoComprobante   @default(FACTURA)
+  fecha            DateTime
+  condicionPagoId  String?
+  condicionPago    CondicionPago?    @relation(fields: [condicionPagoId], references: [id])
+  fechaVencimiento DateTime?
+  monedaId         String?
+  moneda           Moneda?           @relation(fields: [monedaId], references: [id])
+  tipoCambio       Float             @default(1)
+  subtotal         Float
+  descuento        Float             @default(0)
+  totalIva5        Float             @default(0)
+  totalIva10       Float             @default(0)
+  total            Float
+  estadoPago       EstadoPago        @default(PENDIENTE)
+  montoPagado      Float             @default(0)
+  estado           EstadoDoc         @default(CONFIRMADA)
+  observacion      String?
+  clienteId        String
+  cliente          Cliente           @relation(fields: [clienteId], references: [id])
+  empresaId        String
+  empresa          Empresa           @relation(fields: [empresaId], references: [id])
+  detalles         VentaDetalle[]
+  notasCredito     NotaCreditoVenta[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  timbradoId  String?
+  timbrado    Timbrado? @relation(fields: [timbradoId], references: [id])
+}
+
+// ─── VENTA DETALLE ────────────────────────────────────────────────────────────
+model VentaDetalle {
+  id             String    @id @default(cuid())
+  cantidad       Float
+  precioUnitario Float
+  descuento      Float     @default(0)
+  impuestoId     String?
+  impuesto       Impuesto? @relation(fields: [impuestoId], references: [id])
+  subtotal       Float
+  total          Float
+  ventaId        String
+  venta          Venta     @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  articuloId     String
+  articulo       Articulo  @relation(fields: [articuloId], references: [id])
+  createdAt      DateTime  @default(now())
+}
+
+// ─── NOTA DE CREDITO VENTA ────────────────────────────────────────────────────
+model NotaCreditoVenta {
+  id             String                    @id @default(cuid())
+  nroComprobante String?
+  fecha          DateTime
+  tipo           TipoNotaCredito
+  motivo         String?
+  montoTotal     Float
+  estado         EstadoDoc                 @default(CONFIRMADA)
+  ventaId        String
+  venta          Venta                     @relation(fields: [ventaId], references: [id])
+  detalles       NotaCreditoVentaDetalle[]
+  createdAt      DateTime                  @default(now())
+}
+
+model NotaCreditoVentaDetalle {
+  id                 String           @id @default(cuid())
+  cantidad           Float?
+  precioUnitario     Float?
+  montoAjuste        Float
+  motivo             String?
+  articuloId         String?
+  notaCreditoVentaId String
+  notaCreditoVenta   NotaCreditoVenta @relation(fields: [notaCreditoVentaId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+}
+
+// ─── TIMBRADO ────────────────────────────────────────────────────────────────
+model Timbrado {
+  id              String    @id @default(cuid())
+  numero          String    // número de timbrado de la SET
+  serie1          String    // ej: 001
+  serie2          String    // ej: 001
+  desde           Int       // numeración desde
+  hasta           Int       // numeración hasta
+  siguiente       Int       // próximo número a usar
+  fechaInicio     DateTime
+  fechaVencimiento DateTime
+  activo          Boolean   @default(true)
+  empresaId       String
+  empresa         Empresa   @relation(fields: [empresaId], references: [id])
+  ventas          Venta[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+enum TipoComprobante {
+  FACTURA
+  TICKET
+  RECIBO
+  NOTA_PEDIDO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+}
+
+enum EstadoDoc {
+  BORRADOR
+  CONFIRMADA
+  ANULADA
+}
+
+enum TipoNotaCredito {
+  DEVOLUCION_PRODUCTO
+  AJUSTE_PRECIO
+}
