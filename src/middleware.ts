@@ -7,7 +7,8 @@ export default auth((req) => {
 
   const isAuthRoute = nextUrl.pathname.startsWith('/login') ||
                       nextUrl.pathname.startsWith('/registro') ||
-                      nextUrl.pathname.startsWith('/forgot-password')
+                      nextUrl.pathname.startsWith('/forgot-password') ||
+                      nextUrl.pathname.startsWith('/reset-password')
 
   const isPublicRoute = nextUrl.pathname === '/'
 

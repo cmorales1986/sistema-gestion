@@ -46,6 +46,20 @@ model Empresa {
   timbrados  Timbrado[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  pagosCompra  PagoCompra[]
+  pagosVenta   PagoVenta[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usado     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
 }
 
 enum EstadoEmpresa {
@@ -279,6 +293,8 @@ model Compra {
   notasCredito     NotaCreditoCompra[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  pagos    PagoCompra[]
+
   @@index([empresaId, fecha])
   @@index([empresaId, estado])
   @@index([empresaId, estadoPago])
@@ -362,6 +378,8 @@ model Venta {
   updatedAt        DateTime          @updatedAt
   timbradoId  String?
   timbrado    Timbrado? @relation(fields: [timbradoId], references: [id])
+  pagos    PagoVenta[]
+
   @@index([empresaId, fecha])
   @@index([empresaId, estado])
   @@index([empresaId, estadoPago])
@@ -433,6 +451,42 @@ model Timbrado {
   updatedAt       DateTime  @updatedAt
 }
 
+// ─── PAGOS DE COMPRAS ────────────────────────────────────────────────────────
+model PagoCompra {
+  id            String    @id @default(cuid())
+  fecha         DateTime
+  monto         Float
+  medioPago     MedioPago @default(EFECTIVO)
+  nroReferencia String?   // nro cheque, transferencia, etc.
+  observacion   String?
+  compraId      String
+  compra        Compra    @relation(fields: [compraId], references: [id])
+  empresaId     String
+  empresa       Empresa   @relation(fields: [empresaId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@index([compraId])
+  @@index([empresaId, fecha])
+}
+
+// ─── COBROS DE VENTAS ────────────────────────────────────────────────────────
+model PagoVenta {
+  id            String    @id @default(cuid())
+  fecha         DateTime
+  monto         Float
+  medioPago     MedioPago @default(EFECTIVO)
+  nroReferencia String?
+  observacion   String?
+  ventaId       String
+  venta         Venta     @relation(fields: [ventaId], references: [id])
+  empresaId     String
+  empresa       Empresa   @relation(fields: [empresaId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@index([ventaId])
+  @@index([empresaId, fecha])
+}
+
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
 enum TipoComprobante {
   FACTURA
@@ -456,4 +510,12 @@ enum EstadoDoc {
 enum TipoNotaCredito {
   DEVOLUCION_PRODUCTO
   AJUSTE_PRECIO
+}
+
+enum MedioPago {
+  EFECTIVO
+  CHEQUE
+  TRANSFERENCIA
+  TARJETA
+  OTRO
 }

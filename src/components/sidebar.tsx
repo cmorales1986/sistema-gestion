@@ -1,51 +1,133 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-'use client'
+"use client";
 
-import { useSession, signOut } from 'next-auth/react'
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import Image from 'next/image'
+import { useSession, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
-  LayoutDashboard, Truck, Users, ShoppingCart,
-  TrendingUp, Package, FileText, LogOut, ChevronRight,
-  Tag, BookOpen, Settings
-} from 'lucide-react'
+  LayoutDashboard,
+  Truck,
+  Users,
+  ShoppingCart,
+  TrendingUp,
+  Package,
+  FileText,
+  LogOut,
+  ChevronRight,
+  Tag,
+  BookOpen,
+  Settings,
+  Building2,
+  ChevronDown,
+  CreditCard,
+  Wallet,
+} from "lucide-react";
 
-const NAV_ITEMS = [
-  { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/categorias',   label: 'Categorías',   icon: Tag },
-  { href: '/articulos',    label: 'Artículos',    icon: BookOpen },
-  { href: '/proveedores',  label: 'Proveedores',  icon: Truck },
-  { href: '/clientes',     label: 'Clientes',     icon: Users },
-  { href: '/compras',      label: 'Compras',      icon: ShoppingCart },
-  { href: '/ventas',       label: 'Ventas',       icon: TrendingUp },
-  { href: '/stock',        label: 'Stock',        icon: Package },
-  { href: '/reportes',     label: 'Reportes',     icon: FileText },
-  { href: '/miscelaneos',  label: 'Parámetros',  icon: Settings },
-]
+type NavItem = {
+  href?: string;
+  label: string;
+  icon: any;
+  children?: { href: string; label: string }[];
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/categorias", label: "Categorías", icon: Tag },
+  { href: "/articulos", label: "Artículos", icon: BookOpen },
+  { href: "/proveedores", label: "Proveedores", icon: Truck },
+  { href: "/clientes", label: "Clientes", icon: Users },
+  {
+    label: "Compras",
+    icon: ShoppingCart,
+    children: [
+      { href: "/compras", label: "Facturas" },
+      { href: "/compras/pagos", label: "Pagos a proveedores" },
+    ],
+  },
+  {
+    label: "Ventas",
+    icon: TrendingUp,
+    children: [
+      { href: "/ventas", label: "Facturas" },
+      { href: "/ventas/cobros", label: "Cobros de clientes" },
+    ],
+  },
+  { href: "/stock", label: "Stock", icon: Package },
+  { href: "/reportes", label: "Reportes", icon: FileText },
+  { href: "/miscelaneos", label: "Parámetros", icon: Settings },
+  { href: "/perfil", label: "Mi Empresa", icon: Building2 },
+];
 
 function getIniciales(nombre: string): string {
-  const palabras = nombre.trim().split(/\s+/)
-  if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase()
-  return (palabras[0][0] + palabras[1][0]).toUpperCase()
+  const palabras = nombre.trim().split(/\s+/);
+  if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
+  return (palabras[0][0] + palabras[1][0]).toUpperCase();
 }
 
 export default function Sidebar() {
-  const { data: session } = useSession()
-  const pathname = usePathname()
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const { data: session } = useSession();
+  const pathname = usePathname();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [openMenus, setOpenMenus] = useState<string[]>([]);
 
-  const user = session?.user as any
-  const colorPrimario   = user?.colorPrimario  || '#1E3A5F'
-  const colorSecundario = user?.colorSecundario || '#2E6DA4'
-  const empresaNombre   = user?.empresaNombre   || 'Mi Empresa'
+  const user = session?.user as any;
+  const colorPrimario = user?.colorPrimario || "#1E3A5F";
+  const colorSecundario = user?.colorSecundario || "#2E6DA4";
+  const empresaNombre = user?.empresaNombre || "Mi Empresa";
 
   useEffect(() => {
-    fetch('/api/empresa/logo')
-      .then(r => r.json())
-      .then(data => setLogoUrl(data.logoUrl || null))
-  }, [session])
+    fetch("/api/empresa/logo")
+      .then((r) => r.json())
+      .then((data) => setLogoUrl(data.logoUrl || null));
+  }, [session]);
+
+  // Abrir submenú automáticamente si estamos en una ruta hija
+  useEffect(() => {
+    NAV_ITEMS.forEach((item) => {
+      if (item.children) {
+        const isActive = item.children.some((c) => pathname.startsWith(c.href));
+        if (isActive && !openMenus.includes(item.label)) {
+          setOpenMenus((prev) => [...prev, item.label]);
+        }
+      }
+    });
+  }, [pathname]);
+
+  function toggleMenu(label: string) {
+    setOpenMenus((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  }
+
+  function isActive(href: string) {
+    return (
+      pathname === href ||
+      (href !== "/dashboard" &&
+        pathname.startsWith(href + "/") &&
+        !pathname.includes("/pagos") &&
+        !pathname.includes("/cobros"))
+    );
+  }
+
+  function isActiveChild(href: string) {
+    if (href === "/compras")
+      return (
+        pathname === "/compras" ||
+        (pathname.startsWith("/compras/") &&
+          !pathname.startsWith("/compras/pagos"))
+      );
+    if (href === "/ventas")
+      return (
+        pathname === "/ventas" ||
+        (pathname.startsWith("/ventas/") &&
+          !pathname.startsWith("/ventas/cobros"))
+      );
+    return pathname === href || pathname.startsWith(href + "/");
+  }
 
   return (
     <aside
@@ -81,61 +163,146 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/')
+      <nav
+        className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto"
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: `${colorSecundario}60 transparent`,
+        }}
+      >
+        {NAV_ITEMS.map((item) => {
+          // Item con submenú
+          if (item.children) {
+            const isOpen = openMenus.includes(item.label);
+            const hasActiveChild = item.children.some((c) =>
+              isActiveChild(c.href),
+            );
+            const Icon = item.icon;
+
+            return (
+              <div key={item.label}>
+                <button
+                  onClick={() => toggleMenu(item.label)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
+                  style={
+                    hasActiveChild
+                      ? {
+                          backgroundColor: `${colorSecundario}60`,
+                          color: "#ffffff",
+                        }
+                      : { color: "rgba(255,255,255,0.7)" }
+                  }
+                  onMouseEnter={(e) => {
+                    if (!hasActiveChild) {
+                      e.currentTarget.style.backgroundColor = `${colorSecundario}40`;
+                      e.currentTarget.style.color = "#ffffff";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!hasActiveChild) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "rgba(255,255,255,0.7)";
+                    }
+                  }}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronDown
+                    className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+                    style={{
+                      transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    }}
+                  />
+                </button>
+
+                {/* Submenú */}
+                {isOpen && (
+                  <div
+                    className="ml-4 mt-0.5 space-y-0.5 border-l pl-3"
+                    style={{ borderColor: `${colorSecundario}40` }}
+                  >
+                    {item.children.map((child) => {
+                      const active = isActiveChild(child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: colorSecundario,
+                                  color: "#ffffff",
+                                }
+                              : { color: "rgba(255,255,255,0.6)" }
+                          }
+                          onMouseEnter={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor = `${colorSecundario}40`;
+                              e.currentTarget.style.color = "#ffffff";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor =
+                                "transparent";
+                              e.currentTarget.style.color =
+                                "rgba(255,255,255,0.6)";
+                            }
+                          }}
+                        >
+                          <ChevronRight className="w-3 h-3 shrink-0" />
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Item normal
+          const active = isActive(item.href!);
+          const Icon = item.icon;
           return (
             <Link
-              key={href}
-              href={href}
+              key={item.href}
+              href={item.href!}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
-              style={isActive
-                ? { backgroundColor: colorSecundario, color: '#ffffff' }
-                : { color: 'rgba(255,255,255,0.7)' }
+              style={
+                active
+                  ? { backgroundColor: colorSecundario, color: "#ffffff" }
+                  : { color: "rgba(255,255,255,0.7)" }
               }
               onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = `${colorSecundario}40`
-                  e.currentTarget.style.color = '#ffffff'
+                if (!active) {
+                  e.currentTarget.style.backgroundColor = `${colorSecundario}40`;
+                  e.currentTarget.style.color = "#ffffff";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
+                if (!active) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "rgba(255,255,255,0.7)";
                 }
               }}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              {isActive && <ChevronRight className="w-3 h-3 shrink-0" />}
+              <span className="flex-1">{item.label}</span>
+              {active && <ChevronRight className="w-3 h-3 shrink-0" />}
             </Link>
-          )
+          );
         })}
       </nav>
 
-      {/* Footer — solo logout */}
+      {/* Footer — solo info */}
       <div
-        className="px-3 py-4 border-t"
+        className="px-4 py-3 border-t shrink-0"
         style={{ borderColor: `${colorSecundario}60` }}
       >
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
-          style={{ color: 'rgba(255,255,255,0.7)' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(220,38,38,0.3)'
-            e.currentTarget.style.color = '#fca5a5'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-          }}
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span>Cerrar sesión</span>
-        </button>
+        <p className="text-xs text-white/40 text-center">Sistema de Gestión</p>
       </div>
     </aside>
-  )
+  );
 }
