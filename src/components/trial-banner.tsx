@@ -14,12 +14,16 @@ export default function TrialBanner() {
   useEffect(() => {
     if (!user?.empresaId) return;
     fetch("/api/empresa/trial")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
       .then((data) => {
-        if (data.diasRestantes !== undefined) {
+        if (data?.diasRestantes !== undefined) {
           setDiasRestantes(data.diasRestantes);
         }
-      });
+      })
+      .catch(() => {});
   }, [user?.empresaId]);
 
   if (diasRestantes === null) return null;

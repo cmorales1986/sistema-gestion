@@ -43,11 +43,11 @@ model Empresa {
   monedas           Moneda[]
   tiposCambio       TipoCambio[]
   periodosContables PeriodoContable[]
-  timbrados  Timbrado[]
+  timbrados         Timbrado[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
-  pagosCompra  PagoCompra[]
-  pagosVenta   PagoVenta[]
+  pagosCompra       PagoCompra[]
+  pagosVenta        PagoVenta[]
 }
 
 model PasswordResetToken {
@@ -63,9 +63,11 @@ model PasswordResetToken {
 }
 
 enum EstadoEmpresa {
+  PENDIENTE
   TRIAL
   ACTIVO
   SUSPENDIDO
+  VENCIDO
 }
 
 // ─── USUARIOS ────────────────────────────────────────────────────────────────
@@ -92,7 +94,7 @@ enum RolUsuario {
 
 model CondicionPago {
   id        String   @id @default(cuid())
-  nombre    String   // "Contado", "Crédito 30 días", etc.
+  nombre    String // "Contado", "Crédito 30 días", etc.
   dias      Int      @default(0) // 0 = contado
   activo    Boolean  @default(true)
   empresaId String
@@ -103,23 +105,23 @@ model CondicionPago {
 }
 
 model Impuesto {
-  id             String         @id @default(cuid())
-  nombre         String         // "IVA 10%", "IVA 5%", "Exenta"
-  porcentaje     Float          @default(0)
-  activo         Boolean        @default(true)
+  id             String          @id @default(cuid())
+  nombre         String // "IVA 10%", "IVA 5%", "Exenta"
+  porcentaje     Float           @default(0)
+  activo         Boolean         @default(true)
   empresaId      String
-  empresa        Empresa        @relation(fields: [empresaId], references: [id])
+  empresa        Empresa         @relation(fields: [empresaId], references: [id])
   articulos      Articulo[]
   compraDetalles CompraDetalle[]
   ventaDetalles  VentaDetalle[]
-  createdAt      DateTime       @default(now())
+  createdAt      DateTime        @default(now())
 }
 
 model Moneda {
   id          String       @id @default(cuid())
-  codigo      String       // "PYG", "USD", "BRL"
-  nombre      String       // "Guaraní", "Dólar", "Real"
-  simbolo     String       // "Gs.", "$", "R$"
+  codigo      String // "PYG", "USD", "BRL"
+  nombre      String // "Guaraní", "Dólar", "Real"
+  simbolo     String // "Gs.", "$", "R$"
   principal   Boolean      @default(false)
   activo      Boolean      @default(true)
   empresaId   String
@@ -135,7 +137,7 @@ model Moneda {
 model TipoCambio {
   id        String   @id @default(cuid())
   fecha     DateTime
-  valor     Float    // cuántos Gs. vale 1 unidad de esta moneda
+  valor     Float // cuántos Gs. vale 1 unidad de esta moneda
   monedaId  String
   moneda    Moneda   @relation(fields: [monedaId], references: [id])
   empresaId String
@@ -147,7 +149,7 @@ model TipoCambio {
 
 model PeriodoContable {
   id          String        @id @default(cuid())
-  nombre      String        // "Enero 2025", "Q1 2025"
+  nombre      String // "Enero 2025", "Q1 2025"
   fechaInicio DateTime
   fechaFin    DateTime
   estado      EstadoPeriodo @default(ABIERTO)
@@ -209,6 +211,7 @@ model Articulo {
   ventaDetalles  VentaDetalle[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
   @@index([empresaId, activo])
   @@index([empresaId, nombre])
 }
@@ -230,18 +233,18 @@ model Stock {
 
 // ─── PROVEEDORES ─────────────────────────────────────────────────────────────
 model Proveedor {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   nombre    String
   ruc       String?
   telefono  String?
   email     String?
   direccion String?
-  activo    Boolean   @default(true)
+  activo    Boolean  @default(true)
   empresaId String
-  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
   compras   Compra[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([empresaId, activo])
 }
@@ -266,34 +269,34 @@ model Cliente {
 
 // ─── COMPRAS (cabecera) ───────────────────────────────────────────────────────
 model Compra {
-  id               String             @id @default(cuid())
+  id               String              @id @default(cuid())
   nroComprobante   String?
-  tipoComprobante  TipoComprobante    @default(FACTURA)
+  tipoComprobante  TipoComprobante     @default(FACTURA)
   fecha            DateTime
   condicionPagoId  String?
-  condicionPago    CondicionPago?     @relation(fields: [condicionPagoId], references: [id])
+  condicionPago    CondicionPago?      @relation(fields: [condicionPagoId], references: [id])
   fechaVencimiento DateTime?
   monedaId         String?
-  moneda           Moneda?            @relation(fields: [monedaId], references: [id])
-  tipoCambio       Float              @default(1)
+  moneda           Moneda?             @relation(fields: [monedaId], references: [id])
+  tipoCambio       Float               @default(1)
   subtotal         Float
-  descuento        Float              @default(0)
-  totalIva5        Float              @default(0)
-  totalIva10       Float              @default(0)
+  descuento        Float               @default(0)
+  totalIva5        Float               @default(0)
+  totalIva10       Float               @default(0)
   total            Float
-  estadoPago       EstadoPago         @default(PENDIENTE)
-  montoPagado      Float              @default(0)
-  estado           EstadoDoc          @default(CONFIRMADA)
+  estadoPago       EstadoPago          @default(PENDIENTE)
+  montoPagado      Float               @default(0)
+  estado           EstadoDoc           @default(CONFIRMADA)
   observacion      String?
   proveedorId      String
-  proveedor        Proveedor          @relation(fields: [proveedorId], references: [id])
+  proveedor        Proveedor           @relation(fields: [proveedorId], references: [id])
   empresaId        String
-  empresa          Empresa            @relation(fields: [empresaId], references: [id])
+  empresa          Empresa             @relation(fields: [empresaId], references: [id])
   detalles         CompraDetalle[]
   notasCredito     NotaCreditoCompra[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  pagos    PagoCompra[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  pagos            PagoCompra[]
 
   @@index([empresaId, fecha])
   @@index([empresaId, estado])
@@ -349,36 +352,36 @@ model NotaCreditoCompraDetalle {
 
 // ─── VENTAS (cabecera) ────────────────────────────────────────────────────────
 model Venta {
-  id               String            @id @default(cuid())
+  id               String             @id @default(cuid())
   nroComprobante   String?
-  tipoComprobante  TipoComprobante   @default(FACTURA)
+  tipoComprobante  TipoComprobante    @default(FACTURA)
   fecha            DateTime
   condicionPagoId  String?
-  condicionPago    CondicionPago?    @relation(fields: [condicionPagoId], references: [id])
+  condicionPago    CondicionPago?     @relation(fields: [condicionPagoId], references: [id])
   fechaVencimiento DateTime?
   monedaId         String?
-  moneda           Moneda?           @relation(fields: [monedaId], references: [id])
-  tipoCambio       Float             @default(1)
+  moneda           Moneda?            @relation(fields: [monedaId], references: [id])
+  tipoCambio       Float              @default(1)
   subtotal         Float
-  descuento        Float             @default(0)
-  totalIva5        Float             @default(0)
-  totalIva10       Float             @default(0)
+  descuento        Float              @default(0)
+  totalIva5        Float              @default(0)
+  totalIva10       Float              @default(0)
   total            Float
-  estadoPago       EstadoPago        @default(PENDIENTE)
-  montoPagado      Float             @default(0)
-  estado           EstadoDoc         @default(CONFIRMADA)
+  estadoPago       EstadoPago         @default(PENDIENTE)
+  montoPagado      Float              @default(0)
+  estado           EstadoDoc          @default(CONFIRMADA)
   observacion      String?
   clienteId        String
-  cliente          Cliente           @relation(fields: [clienteId], references: [id])
+  cliente          Cliente            @relation(fields: [clienteId], references: [id])
   empresaId        String
-  empresa          Empresa           @relation(fields: [empresaId], references: [id])
+  empresa          Empresa            @relation(fields: [empresaId], references: [id])
   detalles         VentaDetalle[]
   notasCredito     NotaCreditoVenta[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  timbradoId  String?
-  timbrado    Timbrado? @relation(fields: [timbradoId], references: [id])
-  pagos    PagoVenta[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  timbradoId       String?
+  timbrado         Timbrado?          @relation(fields: [timbradoId], references: [id])
+  pagos            PagoVenta[]
 
   @@index([empresaId, fecha])
   @@index([empresaId, estado])
@@ -434,21 +437,21 @@ model NotaCreditoVentaDetalle {
 
 // ─── TIMBRADO ────────────────────────────────────────────────────────────────
 model Timbrado {
-  id              String    @id @default(cuid())
-  numero          String    // número de timbrado de la SET
-  serie1          String    // ej: 001
-  serie2          String    // ej: 001
-  desde           Int       // numeración desde
-  hasta           Int       // numeración hasta
-  siguiente       Int       // próximo número a usar
-  fechaInicio     DateTime
+  id               String   @id @default(cuid())
+  numero           String // número de timbrado de la SET
+  serie1           String // ej: 001
+  serie2           String // ej: 001
+  desde            Int // numeración desde
+  hasta            Int // numeración hasta
+  siguiente        Int // próximo número a usar
+  fechaInicio      DateTime
   fechaVencimiento DateTime
-  activo          Boolean   @default(true)
-  empresaId       String
-  empresa         Empresa   @relation(fields: [empresaId], references: [id])
-  ventas          Venta[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  activo           Boolean  @default(true)
+  empresaId        String
+  empresa          Empresa  @relation(fields: [empresaId], references: [id])
+  ventas           Venta[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 // ─── PAGOS DE COMPRAS ────────────────────────────────────────────────────────
@@ -457,7 +460,7 @@ model PagoCompra {
   fecha         DateTime
   monto         Float
   medioPago     MedioPago @default(EFECTIVO)
-  nroReferencia String?   // nro cheque, transferencia, etc.
+  nroReferencia String? // nro cheque, transferencia, etc.
   observacion   String?
   compraId      String
   compra        Compra    @relation(fields: [compraId], references: [id])

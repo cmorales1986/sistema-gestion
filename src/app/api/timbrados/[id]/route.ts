@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { getEmpresaId } from '@/lib/get-empresa-id'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -9,7 +10,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const body = await req.json()
-  const empresaId = (session.user as any).empresaId
+  const empresaId = await getEmpresaId(session)
 
   if (body.activo) {
     await prisma.timbrado.updateMany({

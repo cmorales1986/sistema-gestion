@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { validarPeriodo } from "@/lib/periodo";
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/auth'
+import { prisma } from '@/lib/prisma'
+import { getEmpresaId } from '@/lib/get-empresa-id'  // ← agregar esta línea
+import { validarPeriodo } from '@/lib/periodo'
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session)
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const empresaId = (session.user as any).empresaId;
+  const empresaId = await getEmpresaId(session);
   const { searchParams } = new URL(req.url);
   const busqueda = searchParams.get("q") || "";
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!session)
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const empresaId = (session.user as any).empresaId;
+  const empresaId = await getEmpresaId(session);
   const body = await req.json();
 
   const {
