@@ -12,8 +12,11 @@ export default auth((req) => {
                       nextUrl.pathname.startsWith('/forgot-password') ||
                       nextUrl.pathname.startsWith('/reset-password')
 
-  const isPublicRoute = nextUrl.pathname === '/'
-  const isAdminRoute  = nextUrl.pathname.startsWith('/admin')
+  const isPublicRoute = nextUrl.pathname === '/' ||
+                        nextUrl.pathname.startsWith('/_next') ||
+                        nextUrl.pathname.startsWith('/api/auth')
+
+  const isAdminRoute = nextUrl.pathname.startsWith('/admin')
 
   if (!isLoggedIn && !isAuthRoute && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', nextUrl))
@@ -31,5 +34,5 @@ export default auth((req) => {
 })
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
