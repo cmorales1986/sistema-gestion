@@ -1,42 +1,53 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { DefaultSession } from 'next-auth'
+import { JWT } from 'next-auth/jwt'
 
 declare module 'next-auth' {
   interface Session {
     user: {
-      id: string
-      rol: string
-      empresaId: string
-      empresaSlug: string
-      empresaNombre: string
-      logoUrl: string | null
-      colorPrimario: string
+      id:              string
+      rol:             string
+      empresaId:       string
+      empresaNombre:   string
+      colorPrimario:   string
       colorSecundario: string
+      logoUrl:         string | null
+      planNombre:      string
+      planId:          string
+      modulos:         string[]
+      reportes:        string[]
+      limites: {
+        proveedores:    number | null
+        clientes:       number | null
+        articulos:      number | null
+        usuarios:       number | null
+        facturasCompra: number | null
+        facturasVenta:  number | null
+      }
     } & DefaultSession['user']
-  }
-
-  interface User {
-    id?: string
-    name?: string | null
-    email?: string | null
-    image?: string | null
-    rol: string
-    empresaId: string
-    empresaSlug: string
-    empresaNombre: string
-    logoUrl: string | null
-    colorPrimario: string
-    colorSecundario: string
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    rol: string
-    empresaId: string
-    empresaSlug: string
-    empresaNombre: string
-    logoUrl: string | null
-    colorPrimario: string
+    id:              string
+    rol:             string
+    empresaId:       string
+    empresaNombre:   string
+    colorPrimario:   string
     colorSecundario: string
+    logoUrl:         string | null
+    planNombre:      string
+    planId:          string
+    modulos:         string[]
+    reportes:        string[]
+    limites: {
+      proveedores:    number | null
+      clientes:       number | null
+      articulos:      number | null
+      usuarios:       number | null
+      facturasCompra: number | null
+      facturasVenta:  number | null
+    }
   }
 }

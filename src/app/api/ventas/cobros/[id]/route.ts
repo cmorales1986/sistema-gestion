@@ -13,21 +13,21 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   const empresaId = await getEmpresaId(session)
   const usuarioId = (session.user as any).id
 
-  const pago = await prisma.pagoCompra.findUnique({
+  const cobro = await prisma.pagoVenta.findUnique({
     where: { id },
-    include: { compra: true }
+    include: { venta: true }
   })
 
-  if (!pago) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  if (!cobro) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   await prisma.$transaction(async (tx) => {
-    // Revertir monto en la compra
-    const nuevoMontoPagado = Math.max(0, pago.compra.montoPagado - pago.monto)
-    const nuevoSaldo       = pago.compra.total - nuevoMontoPagado
+    // Revertir monto en la venta
+    const nuevoMontoPagado = Math.max(0, cobro.venta.montoPagado - cobro.monto)
+    const nuevoSaldo       = cobro.venta.total - nuevoMontoPagado
     const estadoPago       = nuevoMontoPagado <= 0 ? 'PENDIENTE' : nuevoSaldo <= 0 ? 'PAGADO' : 'PARCIAL'
 
-    await tx.compra.update({
-      where: { id: pago.compraId },
+    await tx.venta.update({
+      where: { id: cobro.ventaId },
       data: { montoPagado: nuevoMontoPagado, estadoPago }
     })
 
@@ -39,20 +39,20 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
       await tx.movimientoCaja.delete({ where: { id: movimientoCaja.id } })
     }
 
-    // Eliminar el pago
-    await tx.pagoCompra.delete({ where: { id } })
+    // Eliminar el cobro
+    await tx.pagoVenta.delete({ where: { id } })
   })
 
   await registrarAuditoria({
     empresaId,
     usuarioId,
-    modulo:      MODULOS.PAGOS,
+    modulo:      MODULOS.COBROS,
     accion:      ACCIONES.ELIMINAR,
-    descripcion: `Eliminación pago de Gs. ${pago.monto} — compra ${pago.compra.nroComprobante || pago.compraId}`,
+    descripcion: `Eliminación cobro de Gs. ${cobro.monto} — venta ${cobro.venta.nroComprobante || cobro.ventaId}`,
     metadata: {
-      pagoId:   id,
-      compraId: pago.compraId,
-      monto:    pago.monto,
+      cobroId: id,
+      ventaId: cobro.ventaId,
+      monto:   cobro.monto,
     }
   })
 

@@ -3,7 +3,7 @@
 
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { Building2, Percent, DollarSign, CreditCard, CalendarRange, Users, FileCheck } from 'lucide-react'
+import { Building2, Percent, DollarSign, CreditCard, CalendarRange, Users, FileCheck, Landmark  } from 'lucide-react'
 
 const ITEMS = [
   {
@@ -48,6 +48,12 @@ const ITEMS = [
     titulo:      'Timbrados',
     descripcion: 'Configurá los timbrados de la SET con serie y numeración.',
   },
+  {
+  href:        '/miscelaneos/cajas',
+  icon:        Landmark,
+  titulo:      'Cajas',
+  descripcion: 'Configurá las cajas para el módulo de tesorería.',
+},
 ]
 
 export default function MiscelaneosPage() {

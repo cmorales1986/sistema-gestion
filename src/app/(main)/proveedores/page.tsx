@@ -58,28 +58,33 @@ export default function ProveedoresPage() {
     setModalOpen(true)
   }
 
-  async function guardar() {
-    if (!form.nombre.trim()) { setError('El nombre es requerido'); return }
-    setGuardando(true)
-    setError('')
+ async function guardar() {
+  if (!form.nombre.trim()) { setError('El nombre es requerido'); return }
+  setGuardando(true)
+  setError('')
 
-    const url    = editando ? `/api/proveedores/${editando.id}` : '/api/proveedores'
-    const method = editando ? 'PUT' : 'POST'
+  const url    = editando ? `/api/proveedores/${editando.id}` : '/api/proveedores'
+  const method = editando ? 'PUT' : 'POST'
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  })
 
-    if (res.ok) {
-      setModalOpen(false)
-      cargar()
-    } else {
+  if (res.ok) {
+    setModalOpen(false)
+    cargar()
+  } else {
+    try {
+      const data = await res.json()
+      setError(data.error || 'Error al guardar')
+    } catch {
       setError('Error al guardar')
     }
-    setGuardando(false)
   }
+  setGuardando(false)
+}
 
   async function eliminar(id: string) {
     if (!confirm('¿Eliminar este proveedor?')) return

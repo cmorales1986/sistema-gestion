@@ -258,7 +258,7 @@ export default function Home() {
                   'Clientes ilimitados',
                   'Artículos ilimitados',
                   'Facturas ilimitadas',
-                  'Hasta 5 usuarios',
+                  'Hasta 10 usuarios',
                   'Reportes completos',
                   'Exportar a Excel',
                   'Timbrado SET',

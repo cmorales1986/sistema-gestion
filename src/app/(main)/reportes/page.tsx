@@ -4,9 +4,9 @@
 
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { TrendingUp, ShoppingCart, BarChart3, CreditCard, Wallet, Package } from 'lucide-react'
+import { TrendingUp, ShoppingCart, BarChart3, CreditCard, Wallet, Package, Shield } from 'lucide-react'
 
-const REPORTES = [
+const REPORTES_BASE = [
   {
     href:        '/reportes/ventas',
     icon:        TrendingUp,
@@ -57,10 +57,24 @@ const REPORTES = [
   },
 ]
 
+const REPORTE_AUDITORIA = {
+  href:        '/reportes/auditoria',
+  icon:        Shield,
+  titulo:      'Auditoría',
+  descripcion: 'Historial completo de acciones realizadas en el sistema.',
+  color:       'text-gray-600',
+  bg:          'bg-gray-100',
+}
+
 export default function ReportesPage() {
   const { data: session } = useSession()
   const user = session?.user as any
   const colorPrimario = user?.colorPrimario || '#1E3A5F'
+
+  // Auditoría solo para ADMIN y SUPERADMIN
+  const reportes = user?.rol !== 'OPERADOR'
+    ? [...REPORTES_BASE, REPORTE_AUDITORIA]
+    : REPORTES_BASE
 
   return (
     <div>
@@ -70,7 +84,7 @@ export default function ReportesPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {REPORTES.map(({ href, icon: Icon, titulo, descripcion, color, bg }) => (
+        {reportes.map(({ href, icon: Icon, titulo, descripcion, color, bg }) => (
           <Link
             key={href}
             href={href}

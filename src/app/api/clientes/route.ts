@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
-import { prisma } from '@/lib/prisma'
-import { getEmpresaId } from '@/lib/get-empresa-id'
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { getEmpresaId } from "@/lib/get-empresa-id";
+import { registrarAuditoria, MODULOS, ACCIONES } from "@/lib/auditoria";
+import { verificarLimite } from "@/lib/verificar-limite";
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await auth();
+  if (!session)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const empresaId = await getEmpresaId(session)
-  const { searchParams } = new URL(req.url)
-  const busqueda = searchParams.get('q') || ''
+  const empresaId = await getEmpresaId(session);
+  const { searchParams } = new URL(req.url);
+  const busqueda = searchParams.get("q") || "";
 
   const clientes = await prisma.cliente.findMany({
     where: {
@@ -18,35 +21,58 @@ export async function GET(req: NextRequest) {
       activo: true,
       ...(busqueda && {
         OR: [
-          { nombre:   { contains: busqueda, mode: 'insensitive' } },
-          { ruc:      { contains: busqueda, mode: 'insensitive' } },
-          { telefono: { contains: busqueda, mode: 'insensitive' } },
-        ]
-      })
+          { nombre: { contains: busqueda, mode: "insensitive" } },
+          { ruc: { contains: busqueda, mode: "insensitive" } },
+          { telefono: { contains: busqueda, mode: "insensitive" } },
+        ],
+      }),
     },
-    orderBy: { nombre: 'asc' },
-  })
+    orderBy: { nombre: "asc" },
+  });
 
-  return NextResponse.json(clientes)
+  return NextResponse.json(clientes);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await auth();
+  if (!session)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const empresaId = await getEmpresaId(session)
-  const body = await req.json()
+  const empresaId = await getEmpresaId(session);
+  const body = await req.json();
 
   const cliente = await prisma.cliente.create({
     data: {
-      nombre:    body.nombre,
-      ruc:       body.ruc       || null,
-      telefono:  body.telefono  || null,
-      email:     body.email     || null,
+      nombre: body.nombre,
+      ruc: body.ruc || null,
+      telefono: body.telefono || null,
+      email: body.email || null,
       direccion: body.direccion || null,
       empresaId,
-    }
-  })
+    },
+  });
 
-  return NextResponse.json(cliente, { status: 201 })
+  const limiteCheck = await verificarLimite({
+    empresaId,
+    tipo: "clientes",
+    limites: (session.user as any).limites,
+  });
+  if (!limiteCheck.ok) {
+    return NextResponse.json({ error: limiteCheck.mensaje }, { status: 403 });
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    usuarioId: (session.user as any).id,
+    modulo: MODULOS.CLIENTES,
+    accion: ACCIONES.CREAR,
+    descripcion: `Nuevo cliente ${body.nombre}`,
+    metadata: {
+      clienteId: cliente.id,
+      nombre: cliente.nombre,
+      ruc: cliente.ruc,
+    },
+  });
+
+  return NextResponse.json(cliente, { status: 201 });
 }

@@ -107,23 +107,29 @@ export default function PagosComprasPage() {
   }
 
   async function guardar() {
-    if (!form.compraId) { setError('Seleccioná una factura'); return }
-    if (!form.monto)    { setError('Ingresá el monto'); return }
-    setGuardando(true); setError('')
+  if (!form.compraId) { setError('Seleccioná una factura'); return }
+  if (!form.monto)    { setError('Ingresá el monto'); return }
+  setGuardando(true); setError('')
 
-    const res = await fetch('/api/compras/pagos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
+  const res = await fetch('/api/compras/pagos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  })
 
-    if (res.ok) { setDrawerOpen(false); cargar() }
-    else {
+  if (res.ok) {
+    setDrawerOpen(false)
+    cargar()
+  } else {
+    try {
       const data = await res.json()
       setError(data.error || 'Error al guardar')
+    } catch {
+      setError('Error al guardar el pago')
     }
-    setGuardando(false)
   }
+  setGuardando(false)
+}
 
   async function eliminar(id: string) {
     if (!confirm('¿Eliminar este pago? Se revertirá el monto en la factura.')) return

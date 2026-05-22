@@ -16,30 +16,64 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
-  if (user) {
-    token.id = user.id
-    token.rol = (user as any).rol
-    token.empresaId = (user as any).empresaId
-    token.empresaSlug = (user as any).empresaSlug
-    token.colorPrimario = (user as any).colorPrimario
-    token.colorSecundario = (user as any).colorSecundario
-    token.empresaNombre = (user as any).empresaNombre
-  }
-  return token
-},
-async session({ session, token }) {
-  if (token) {
-    const u = session.user as any
-    u.id = token.id
-    u.rol = token.rol
-    u.empresaId = token.empresaId
-    u.empresaSlug = token.empresaSlug
-    u.colorPrimario = token.colorPrimario
-    u.colorSecundario = token.colorSecundario
-    u.empresaNombre = token.empresaNombre
-  }
-  return session
-},
+      if (user) {
+        const dbUser = await prisma.usuario.findUnique({
+          where: { email: user.email! },
+          include: {
+            empresa: {
+              include: {
+                plan: true,
+              },
+            },
+          },
+        });
+
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.rol = dbUser.rol;
+          token.empresaId = dbUser.empresaId;
+          token.empresaNombre = dbUser.empresa.nombre;
+          token.colorPrimario = dbUser.empresa.colorPrimario;
+          token.colorSecundario = dbUser.empresa.colorSecundario;
+          token.logoUrl = dbUser.empresa.logoUrl;
+          token.planNombre = dbUser.empresa.plan?.nombre || "";
+          token.planId = dbUser.empresa.plan?.id || "";
+
+          // ← Nuevos campos
+          token.modulos = dbUser.empresa.plan?.modulos || [];
+          token.reportes = dbUser.empresa.plan?.reportes || [];
+          token.limites = {
+            proveedores: dbUser.empresa.plan?.limiteProveedores ?? null,
+            clientes: dbUser.empresa.plan?.limiteClientes ?? null,
+            articulos: dbUser.empresa.plan?.limiteArticulos ?? null,
+            usuarios: dbUser.empresa.plan?.limiteUsuarios ?? null,
+            facturasCompra: dbUser.empresa.plan?.limiteFacturasCompra ?? null,
+            facturasVenta: dbUser.empresa.plan?.limiteFacturasVenta ?? null,
+          };
+        }
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).id = token.id;
+        (session.user as any).rol = token.rol;
+        (session.user as any).empresaId = token.empresaId;
+        (session.user as any).empresaNombre = token.empresaNombre;
+        (session.user as any).colorPrimario = token.colorPrimario;
+        (session.user as any).colorSecundario = token.colorSecundario;
+        (session.user as any).logoUrl = token.logoUrl;
+        (session.user as any).planNombre = token.planNombre;
+        (session.user as any).planId = token.planId;
+
+        // ← Nuevos campos
+        (session.user as any).modulos = token.modulos;
+        (session.user as any).reportes = token.reportes;
+        (session.user as any).limites = token.limites;
+      }
+      return session;
+    },
   },
   providers: [
     Credentials({
