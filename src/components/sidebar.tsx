@@ -45,11 +45,16 @@ const NAV_ITEMS: NavItem[] = [
       { href: '/ventas/cobros', label: 'Cobros de clientes' },
     ],
   },
-  { href: '/caja',        label: 'Caja',        icon: Landmark },
+  {
+    label: 'Tesorería',
+    icon: Landmark,
+    children: [
+      { href: '/caja',   label: 'Caja' },
+      { href: '/bancos', label: 'Bancos', modulo: 'BANCOS' },
+    ],
+  },
   { href: '/stock',       label: 'Stock',       icon: Package },
   { href: '/reportes',    label: 'Reportes',    icon: FileText },
-  // Módulos premium
-  { href: '/bancos',      label: 'Bancos',      icon: Banknote,  modulo: 'BANCOS' },
   { href: '/miscelaneos', label: 'Parámetros',  icon: Settings },
   { href: '/perfil',      label: 'Mi Empresa',  icon: Building2 },
 ]
@@ -146,9 +151,9 @@ export default function Sidebar() {
 
           // Item con submenú
           if (item.children) {
-            const isOpen        = openMenus.includes(item.label)
+            const isOpen         = openMenus.includes(item.label)
             const hasActiveChild = item.children.some(c => isActiveChild(c.href))
-            const Icon          = item.icon
+            const Icon           = item.icon
 
             return (
               <div key={item.label}>
@@ -186,7 +191,9 @@ export default function Sidebar() {
                     style={{ borderColor: `${colorSecundario}40` }}
                   >
                     {item.children.map(child => {
-                      const active = isActiveChild(child.href)
+                      const active    = isActiveChild(child.href)
+                      const bloqueado = child.modulo && !modulos.includes(child.modulo)
+
                       return (
                         <Link
                           key={child.href}
@@ -194,7 +201,9 @@ export default function Sidebar() {
                           className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
                           style={active
                             ? { backgroundColor: colorSecundario, color: '#ffffff' }
-                            : { color: 'rgba(255,255,255,0.6)' }
+                            : bloqueado
+                              ? { color: 'rgba(255,255,255,0.4)' }
+                              : { color: 'rgba(255,255,255,0.6)' }
                           }
                           onMouseEnter={e => {
                             if (!active) {
@@ -205,12 +214,15 @@ export default function Sidebar() {
                           onMouseLeave={e => {
                             if (!active) {
                               e.currentTarget.style.backgroundColor = 'transparent'
-                              e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                              e.currentTarget.style.color = bloqueado
+                                ? 'rgba(255,255,255,0.4)'
+                                : 'rgba(255,255,255,0.6)'
                             }
                           }}
                         >
                           <ChevronRight className="w-3 h-3 shrink-0" />
-                          {child.label}
+                          <span className="flex-1">{child.label}</span>
+                          {bloqueado && <Lock className="w-3 h-3 shrink-0 opacity-50" />}
                         </Link>
                       )
                     })}
@@ -245,7 +257,9 @@ export default function Sidebar() {
               onMouseLeave={e => {
                 if (!active) {
                   e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = bloqueado ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.7)'
+                  e.currentTarget.style.color = bloqueado
+                    ? 'rgba(255,255,255,0.4)'
+                    : 'rgba(255,255,255,0.7)'
                 }
               }}
             >

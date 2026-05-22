@@ -39,15 +39,13 @@ declare module 'next-auth/jwt' {
     logoUrl:         string | null
     planNombre:      string
     planId:          string
-    modulos:         string[]
-    reportes:        string[]
-    limites: {
-      proveedores:    number | null
-      clientes:       number | null
-      articulos:      number | null
-      usuarios:       number | null
-      facturasCompra: number | null
-      facturasVenta:  number | null
-    }
+    modulos:         string  // guardado como string separado por comas
+    reportes:        string
+    limProv:         number
+    limCli:          number
+    limArt:          number
+    limUsu:          number
+    limFC:           number
+    limFV:           number
   }
 }

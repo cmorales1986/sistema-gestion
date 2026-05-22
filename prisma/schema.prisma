@@ -66,6 +66,9 @@ model Empresa {
   aperturasCaja  AperturaCaja[]
   movimientosCaja MovimientoCaja[]
   auditorias Auditoria[]
+  cuentasBancarias    CuentaBancaria[]
+  cheques             Cheque[]
+  movimientosBancarios MovimientoBancario[]
 }
 
 model PasswordResetToken {
@@ -151,6 +154,7 @@ model Moneda {
   compras     Compra[]
   ventas      Venta[]
   createdAt   DateTime     @default(now())
+  cuentasBancarias CuentaBancaria[]
 
   @@unique([codigo, empresaId])
 }
@@ -636,4 +640,109 @@ model Auditoria {
   @@index([usuarioId])
   @@index([modulo])
   @@index([createdAt])
+}
+
+enum TipoCheque {
+  COMUN
+  DIFERIDO
+}
+
+enum EstadoCheque {
+  EN_CARTERA
+  A_DEPOSITAR
+  DEPOSITADO
+  ACREDITADO
+  RECHAZADO
+  ANULADO
+  ENTREGADO
+}
+
+enum TipoMovimientoBancario {
+  DEBITO
+  CREDITO
+}
+
+enum EstadoMovimientoBancario {
+  PENDIENTE
+  CONCILIADO
+}
+
+model Banco {
+  id       String  @id @default(cuid())
+  nombre   String
+  codigo   String  // BNF, ITAU, VISION, etc.
+  activo   Boolean @default(true)
+  cuentas  CuentaBancaria[]
+  cheques  Cheque[]
+  createdAt DateTime @default(now())
+}
+
+model CuentaBancaria {
+  id            String   @id @default(cuid())
+  bancoId       String
+  banco         Banco    @relation(fields: [bancoId], references: [id])
+  nroCuenta     String
+  descripcion   String?
+  monedaId      String?
+  moneda        Moneda?  @relation(fields: [monedaId], references: [id])
+  saldoInicial  Float    @default(0)
+  activo        Boolean  @default(true)
+  empresaId     String
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  movimientos   MovimientoBancario[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([empresaId])
+}
+
+model Cheque {
+  id           String       @id @default(cuid())
+  tipo         TipoCheque   @default(COMUN)
+  movimiento   String       // 'EMITIDO' | 'RECIBIDO'
+  nroCheque    String
+  bancoId      String?
+  banco        Banco?       @relation(fields: [bancoId], references: [id])
+  bancoNombre  String?
+  monto        Float
+  fechaEmision DateTime
+  fechaPago    DateTime
+  diasDiferido Int          @default(0)
+  estado       EstadoCheque @default(EN_CARTERA)
+  beneficiario String?
+  emisor       String?
+  observacion  String?
+  pagoCompraId String?
+  pagoVentaId  String?
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  movimientosBancarios MovimientoBancario[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([empresaId])
+  @@index([estado])
+  @@index([fechaPago])
+}
+
+model MovimientoBancario {
+  id              String                   @id @default(cuid())
+  cuentaId        String
+  cuenta          CuentaBancaria           @relation(fields: [cuentaId], references: [id])
+  tipo            TipoMovimientoBancario
+  concepto        String
+  monto           Float
+  fecha           DateTime
+  estado          EstadoMovimientoBancario @default(PENDIENTE)
+  referenciaId    String?
+  referenciaTipo  String?   // 'PAGO_COMPRA' | 'COBRO_VENTA' | 'CHEQUE' | 'MANUAL'
+  chequeId        String?
+  cheque          Cheque?   @relation(fields: [chequeId], references: [id])
+  empresaId       String
+  empresa         Empresa   @relation(fields: [empresaId], references: [id])
+  createdAt       DateTime  @default(now())
+
+  @@index([cuentaId])
+  @@index([empresaId])
+  @@index([fecha])
 }

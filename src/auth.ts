@@ -21,9 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           where: { email: user.email! },
           include: {
             empresa: {
-              include: {
-                plan: true,
-              },
+              include: { plan: true },
             },
           },
         });
@@ -36,20 +34,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.colorPrimario = dbUser.empresa.colorPrimario;
           token.colorSecundario = dbUser.empresa.colorSecundario;
           token.logoUrl = dbUser.empresa.logoUrl;
+          token.planId = dbUser.empresa.planId;
           token.planNombre = dbUser.empresa.plan?.nombre || "";
-          token.planId = dbUser.empresa.plan?.id || "";
 
-          // ← Nuevos campos
-          token.modulos = dbUser.empresa.plan?.modulos || [];
-          token.reportes = dbUser.empresa.plan?.reportes || [];
-          token.limites = {
-            proveedores: dbUser.empresa.plan?.limiteProveedores ?? null,
-            clientes: dbUser.empresa.plan?.limiteClientes ?? null,
-            articulos: dbUser.empresa.plan?.limiteArticulos ?? null,
-            usuarios: dbUser.empresa.plan?.limiteUsuarios ?? null,
-            facturasCompra: dbUser.empresa.plan?.limiteFacturasCompra ?? null,
-            facturasVenta: dbUser.empresa.plan?.limiteFacturasVenta ?? null,
-          };
+          // Guardá solo IDs/valores simples, no arrays grandes
+          token.modulos = (dbUser.empresa.plan?.modulos || []).join(",");
+          token.reportes = (dbUser.empresa.plan?.reportes || []).join(",");
+          token.limProv = dbUser.empresa.plan?.limiteProveedores ?? -1;
+          token.limCli = dbUser.empresa.plan?.limiteClientes ?? -1;
+          token.limArt = dbUser.empresa.plan?.limiteArticulos ?? -1;
+          token.limUsu = dbUser.empresa.plan?.limiteUsuarios ?? -1;
+          token.limFC = dbUser.empresa.plan?.limiteFacturasCompra ?? -1;
+          token.limFV = dbUser.empresa.plan?.limiteFacturasVenta ?? -1;
         }
       }
       return token;
@@ -57,20 +53,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).rol = token.rol;
-        (session.user as any).empresaId = token.empresaId;
-        (session.user as any).empresaNombre = token.empresaNombre;
-        (session.user as any).colorPrimario = token.colorPrimario;
-        (session.user as any).colorSecundario = token.colorSecundario;
-        (session.user as any).logoUrl = token.logoUrl;
-        (session.user as any).planNombre = token.planNombre;
-        (session.user as any).planId = token.planId;
+        const u = session.user as any;
+        u.id = token.id;
+        u.rol = token.rol;
+        u.empresaId = token.empresaId;
+        u.empresaNombre = token.empresaNombre;
+        u.colorPrimario = token.colorPrimario;
+        u.colorSecundario = token.colorSecundario;
+        u.logoUrl = token.logoUrl;
+        u.planId = token.planId;
+        u.planNombre = token.planNombre;
 
-        // ← Nuevos campos
-        (session.user as any).modulos = token.modulos;
-        (session.user as any).reportes = token.reportes;
-        (session.user as any).limites = token.limites;
+        // Reconstruir arrays desde strings
+        u.modulos = token.modulos
+          ? (token.modulos as string).split(",").filter(Boolean)
+          : [];
+        u.reportes = token.reportes
+          ? (token.reportes as string).split(",").filter(Boolean)
+          : [];
+
+        // Reconstruir limites (-1 = null = ilimitado)
+        u.limites = {
+          proveedores: token.limProv === -1 ? null : token.limProv,
+          clientes: token.limCli === -1 ? null : token.limCli,
+          articulos: token.limArt === -1 ? null : token.limArt,
+          usuarios: token.limUsu === -1 ? null : token.limUsu,
+          facturasCompra: token.limFC === -1 ? null : token.limFC,
+          facturasVenta: token.limFV === -1 ? null : token.limFV,
+        };
       }
       return session;
     },
