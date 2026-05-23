@@ -36,6 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.logoUrl = dbUser.empresa.logoUrl;
           token.planId = dbUser.empresa.planId;
           token.planNombre = dbUser.empresa.plan?.nombre || "";
+          token.onboarding = dbUser.empresa.onboardingCompletado
 
           // Guardá solo IDs/valores simples, no arrays grandes
           token.modulos = (dbUser.empresa.plan?.modulos || []).join(",");
@@ -63,6 +64,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         u.logoUrl = token.logoUrl;
         u.planId = token.planId;
         u.planNombre = token.planNombre;
+        u.onboarding = token.onboarding
 
         // Reconstruir arrays desde strings
         u.modulos = token.modulos

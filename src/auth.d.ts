@@ -16,6 +16,7 @@ declare module 'next-auth' {
       planId:          string
       modulos:         string[]
       reportes:        string[]
+      onboarding: boolean
       limites: {
         proveedores:    number | null
         clientes:       number | null
@@ -44,6 +45,7 @@ declare module 'next-auth/jwt' {
     limProv:         number
     limCli:          number
     limArt:          number
+    onboarding: boolean
     limUsu:          number
     limFC:           number
     limFV:           number

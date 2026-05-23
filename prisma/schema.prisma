@@ -69,6 +69,7 @@ model Empresa {
   cuentasBancarias    CuentaBancaria[]
   cheques             Cheque[]
   movimientosBancarios MovimientoBancario[]
+  onboardingCompletado Boolean @default(false)
 }
 
 model PasswordResetToken {

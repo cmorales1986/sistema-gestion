@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmpresaId } from "@/lib/get-empresa-id";
 import bcrypt from "bcryptjs";
 import { registrarAuditoria, MODULOS, ACCIONES } from "@/lib/auditoria";
+import { verificarLimite } from "@/lib/verificar-limite";
 
 export async function GET() {
   const session = await auth();
@@ -36,6 +37,16 @@ export async function POST(req: NextRequest) {
 
   const empresaId = await getEmpresaId(session);
   const body = await req.json();
+
+  // ← Verificar límite ANTES de crear
+  const limiteCheck = await verificarLimite({
+    empresaId,
+    tipo: "usuarios",
+    limites: (session.user as any).limites,
+  });
+  if (!limiteCheck.ok) {
+    return NextResponse.json({ error: limiteCheck.mensaje }, { status: 403 });
+  }
 
   const existe = await prisma.usuario.findUnique({
     where: { email: body.email },

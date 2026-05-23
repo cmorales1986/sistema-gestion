@@ -10,12 +10,14 @@ export const { auth } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.rol = (user as any).rol
+        token.onboarding = (user as any).onboarding
       }
       return token
     },
     session({ session, token }) {
       if (session.user) {
         (session.user as any).rol = token.rol
+        ;(session.user as any).onboarding = token.onboarding
       }
       return session
     },

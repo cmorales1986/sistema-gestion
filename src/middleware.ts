@@ -18,7 +18,11 @@ export default auth((req) => {
     nextUrl.pathname.startsWith("/_next") ||
     nextUrl.pathname.startsWith("/api/auth") ||
     nextUrl.pathname === "/api/planes" ||
-    nextUrl.pathname === "/api/registro"; // ← agregar
+    nextUrl.pathname === "/api/registro";
+
+  const isOnboardingRoute =
+    nextUrl.pathname.startsWith("/onboarding") ||
+    nextUrl.pathname.startsWith("/api/"); // ← todas las APIs pasan sin chequeo de onboarding
 
   const isAdminRoute = nextUrl.pathname.startsWith("/admin");
 
@@ -32,6 +36,19 @@ export default auth((req) => {
 
   if (isLoggedIn && isAdminRoute && user?.rol !== "SUPERADMIN") {
     return NextResponse.redirect(new URL("/dashboard", nextUrl));
+  }
+
+  // Redirigir al onboarding solo para páginas, no APIs
+  if (
+    isLoggedIn &&
+    !isAuthRoute &&
+    !isAdminRoute &&
+    !isOnboardingRoute &&
+    !isPublicRoute
+  ) {
+    if (user?.onboarding === false) {
+      return NextResponse.redirect(new URL("/onboarding", nextUrl));
+    }
   }
 
   return NextResponse.next();
