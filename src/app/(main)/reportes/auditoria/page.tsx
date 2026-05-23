@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { ArrowLeft, Search, ChevronDown, Shield } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Loading from '@/components/loading'
 
 type Usuario  = { id: string; nombre: string; email: string }
 type Registro = {
@@ -218,7 +219,9 @@ export default function AuditoriaPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando registros..." />
+          </div>
         ) : registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Shield className="w-8 h-8 mb-2 opacity-30" />

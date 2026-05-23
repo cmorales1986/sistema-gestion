@@ -9,6 +9,7 @@ import { usePlan } from '@/lib/use-plan'
 import ModuloBloqueado from '@/components/modulo-bloqueado'
 import { Plus, ArrowLeft, CheckCircle, Clock, Trash2, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type Conciliacion = {
   id:            string
@@ -142,7 +143,9 @@ export default function ConciliacionPage() {
 
       {/* Lista */}
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+          <Loading texto="Cargando conciliaciones..." />
+        </div>
       ) : conciliaciones.length === 0 ? (
         <div className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-16 text-center">
           <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">

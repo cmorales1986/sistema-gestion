@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Printer, Ban, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type CompraDetalle = {
   id: string
@@ -86,7 +87,7 @@ export default function DetalleCompraPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32 text-gray-400 text-sm">
-        Cargando...
+        <Loading texto="Cargando compra..." />
       </div>
     )
   }

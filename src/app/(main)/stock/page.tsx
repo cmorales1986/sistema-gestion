@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Search, Package, AlertTriangle, ChevronDown } from 'lucide-react'
+import Loading from '@/components/loading'
 
 type Almacen = { id: string; nombre: string }
 type StockItem = {
@@ -134,7 +135,9 @@ export default function StockPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando stock..." />
+          </div>
         ) : stock.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Package className="w-8 h-8 mb-2 opacity-30" />

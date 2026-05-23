@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, Pencil, Trash2, Percent, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Impuesto = { id: string; nombre: string; porcentaje: number }
 const EMPTY = { nombre: '', porcentaje: '' }
@@ -98,7 +99,9 @@ export default function ImpuestosPage() {
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando impuestos..." />
+          </div>
         ) : impuestos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Percent className="w-8 h-8 mb-2 opacity-30" />

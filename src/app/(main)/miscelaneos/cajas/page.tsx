@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, Pencil, Trash2, ArrowLeft, Landmark } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Caja = { id: string; nombre: string; descripcion: string | null; activo: boolean }
 
@@ -104,7 +105,9 @@ export default function CajasPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando cajas..." />
+          </div>
         ) : cajas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Landmark className="w-8 h-8 mb-2 opacity-30" />

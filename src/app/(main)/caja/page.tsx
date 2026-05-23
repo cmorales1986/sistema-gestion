@@ -10,6 +10,7 @@ import {
   Unlock, ChevronDown, ArrowLeft, Clock, AlertTriangle
 } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type Caja = { id: string; nombre: string; descripcion: string | null }
 type Movimiento = {
@@ -157,7 +158,7 @@ export default function CajaPage() {
     cargar()
   }
 
-  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Cargando...</div>
+  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm"><Loading texto="Cargando caja..." /></div>
 
   return (
     <div>

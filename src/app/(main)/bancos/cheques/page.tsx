@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, ArrowLeft, ChevronDown, Search } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Banco = { id: string; nombre: string; codigo: string }
 type Cheque = {
@@ -224,7 +225,9 @@ export default function ChequesPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando cheques..." />
+          </div>
         ) : cheques.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <p className="text-sm">No hay cheques en el período</p>

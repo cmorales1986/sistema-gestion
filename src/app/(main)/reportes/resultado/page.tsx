@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, Printer, Search, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type ResultadoData = {
   ventas:  { total: number; count: number; iva5: number; iva10: number }
@@ -89,7 +90,9 @@ export default function ReporteResultadoPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+          <Loading texto="Cargando resultado..." />
+        </div>
       ) : data && (
         <div className="space-y-4">
 

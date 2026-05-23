@@ -8,6 +8,7 @@ import { Plus, Search, Trash2, ChevronDown, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
 import { usePlan } from '@/lib/use-plan'
+import Loading from '@/components/loading'
 
 type Cliente = { id: string; nombre: string }
 type Venta   = { id: string; nroComprobante: string | null; total: number; montoPagado: number; cliente: { nombre: string } }
@@ -279,7 +280,9 @@ export default function CobrosVentasPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando cobros..." />
+          </div>
         ) : cobros.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <p className="text-sm">No hay cobros en el período seleccionado</p>

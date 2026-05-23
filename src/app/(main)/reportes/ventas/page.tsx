@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { ArrowLeft, Printer, Search, FileSpreadsheet } from "lucide-react";
 import { exportarExcel } from "@/lib/export-excel";
 import Link from "next/link";
+import Loading from "@/components/loading";
 
 type Cliente = { id: string; nombre: string };
 type Venta = {
@@ -266,7 +267,7 @@ export default function ReporteVentasPage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
-            Cargando...
+            <Loading texto="Cargando ventas..." />
           </div>
         ) : !data || data.ventas.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-gray-400 text-sm">

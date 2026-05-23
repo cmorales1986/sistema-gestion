@@ -17,6 +17,7 @@ import {
   GitMerge,
 } from "lucide-react";
 import Link from "next/link";
+import Loading from "@/components/loading";
 
 type CuentaBancaria = {
   id: string;
@@ -150,7 +151,7 @@ export default function BancosPage() {
       {/* Cuentas */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
-          Cargando...
+          <Loading texto="Cargando cuentas..." />
         </div>
       ) : cuentas.length === 0 ? (
         <div className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-16 text-center">

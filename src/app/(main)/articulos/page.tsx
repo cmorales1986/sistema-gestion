@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Plus, Search, Pencil, Trash2, Package, ChevronDown } from 'lucide-react'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Categoria = { id: string; nombre: string }
 type Impuesto  = { id: string; nombre: string; porcentaje: number }
@@ -155,7 +156,7 @@ export default function ArticulosPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm"><Loading texto="Cargando Artículos..." /></div>
         ) : articulos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Package className="w-8 h-8 mb-2 opacity-30" />

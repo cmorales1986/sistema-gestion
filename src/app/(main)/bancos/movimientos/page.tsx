@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react'
 import { ArrowLeft, Plus, Search, Trash2, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type CuentaBancaria = {
   id:    string
@@ -177,7 +178,9 @@ export default function MovimientosBancariosPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando movimientos..." />
+          </div>
         ) : movimientos.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
             No hay movimientos en el período

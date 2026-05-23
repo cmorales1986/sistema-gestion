@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, Printer, Search } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type Proveedor = { id: string; nombre: string }
 type Compra = {
@@ -141,7 +142,9 @@ export default function ReporteComprasPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando compras..." />
+          </div>
         ) : !data || data.compras.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-gray-400 text-sm">No hay compras en el período seleccionado</div>
         ) : (

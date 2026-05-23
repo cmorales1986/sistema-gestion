@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Plus, Search, Pencil, Trash2, Phone, Mail, MapPin, Hash } from 'lucide-react'
+import Loading from '@/components/loading'
 
 type Proveedor = {
   id: string
@@ -127,7 +128,9 @@ export default function ProveedoresPage() {
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando proveedores..." />
+          </div>
         ) : proveedores.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <p className="text-sm">No hay proveedores registrados</p>

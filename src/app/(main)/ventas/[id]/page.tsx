@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Printer, Ban, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type VentaDetalle = {
   id: string
@@ -82,7 +83,7 @@ export default function DetalleVentaPage() {
     router.push('/ventas')
   }
 
-  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Cargando...</div>
+  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm"><Loading texto="Cargando venta..." /></div>
   if (!venta)  return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Venta no encontrada</div>
 
   const simbolo = venta.moneda?.simbolo || 'Gs.'

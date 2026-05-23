@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { Building2, Save, Upload, X } from 'lucide-react'
 import Image from 'next/image'
+import Loading from '@/components/loading'
 
 const COLORES_PRESET = [
   { primario: '#1E3A5F', secundario: '#2E6DA4', label: 'Azul oscuro' },
@@ -126,7 +127,7 @@ export default function PerfilPage() {
 
   function formatGs(n: number) { return new Intl.NumberFormat('es-PY').format(n) }
 
-  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Cargando...</div>
+  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm"><Loading texto="Cargando perfil..." /></div>
 
   return (
     <div className="max-w-2xl mx-auto">

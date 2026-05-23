@@ -71,6 +71,7 @@ model Empresa {
   movimientosBancarios MovimientoBancario[]
   onboardingCompletado Boolean @default(false)
   conciliaciones      ConciliacionBancaria[]
+  remisiones  Remision[]
 }
 
 model PasswordResetToken {
@@ -203,6 +204,8 @@ model Almacen {
   stock       Stock[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  remisionesOrigen  Remision[] @relation("RemisionOrigen")
+  remisionesDestino Remision[] @relation("RemisionDestino")
 }
 
 // ─── CATEGORIAS ──────────────────────────────────────────────────────────────
@@ -239,6 +242,7 @@ model Articulo {
   ventaDetalles  VentaDetalle[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  remisionDetalles RemisionDetalle[]
 
   @@index([empresaId, activo])
   @@index([empresaId, nombre])
@@ -819,4 +823,93 @@ enum TipoAjuste {
   CHEQUE_EN_CIRCULACION
   ERROR_REGISTRO
   OTRO
+}
+
+enum TipoRemision {
+  ENTRADA          // Ingreso de mercadería sin factura
+  SALIDA           // Egreso de mercadería sin factura
+  TRANSFERENCIA    // Movimiento entre almacenes
+}
+
+enum MotivoEntrada {
+  REMISION_COMPRA       // Llegó la mercadería antes de la factura
+  DEVOLUCION_CLIENTE    // Cliente devuelve mercadería
+  DONACION              // Donación o regalo recibido
+  AJUSTE_POSITIVO       // Corrección de inventario
+  OTRO
+}
+
+enum MotivoSalida {
+  REMISION_VENTA        // Salió la mercadería antes de la factura
+  PERDIDA               // Pérdida, robo, siniestro
+  VENCIMIENTO           // Artículos vencidos o deteriorados
+  MUESTRA               // Muestra comercial
+  AJUSTE_NEGATIVO       // Corrección de inventario
+  OTRO
+}
+
+enum EstadoRemision {
+  BORRADOR
+  CONFIRMADA
+  ANULADA
+}
+
+// ─── MODELO REMISION ──────────────────────────────────────────────────────────
+
+model Remision {
+  id              String          @id @default(cuid())
+  numero          String?         // número interno autogenerado
+  tipo            TipoRemision
+
+  // Datos fiscales (solo si esFiscal = true)
+  esFiscal        Boolean         @default(false)
+  nroComprobante  String?
+  timbradoNro     String?
+  serie1          String?
+  serie2          String?
+
+  fecha           DateTime
+  motivoEntrada   MotivoEntrada?
+  motivoSalida    MotivoSalida?
+  observacion     String?
+  estado          EstadoRemision  @default(BORRADOR)
+
+  // Almacén origen (para SALIDA y TRANSFERENCIA)
+  almacenOrigenId String?
+  almacenOrigen   Almacen?        @relation("RemisionOrigen",  fields: [almacenOrigenId], references: [id])
+
+  // Almacén destino (para ENTRADA y TRANSFERENCIA)
+  almacenDestinoId String?
+  almacenDestino   Almacen?       @relation("RemisionDestino", fields: [almacenDestinoId], references: [id])
+
+  empresaId       String
+  empresa         Empresa         @relation(fields: [empresaId], references: [id])
+
+  detalles        RemisionDetalle[]
+
+  creadoPor       String?         // nombre del usuario
+  anulacionMotivo String?
+  anulacionFecha  DateTime?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([empresaId, tipo])
+  @@index([empresaId, estado])
+  @@index([empresaId, fecha])
+}
+
+model RemisionDetalle {
+  id          String    @id @default(cuid())
+  remisionId  String
+  remision    Remision  @relation(fields: [remisionId], references: [id], onDelete: Cascade)
+  articuloId  String
+  articulo    Articulo  @relation(fields: [articuloId], references: [id])
+  cantidad    Float
+  precioUnit  Float?    // opcional, para valorizar
+  observacion String?
+  createdAt   DateTime  @default(now())
+
+  @@index([remisionId])
+  @@index([articuloId])
 }

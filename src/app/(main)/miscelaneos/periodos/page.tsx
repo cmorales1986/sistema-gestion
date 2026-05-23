@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, Pencil, Trash2, CalendarRange, ArrowLeft, Lock, Unlock } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Periodo = {
   id: string
@@ -178,7 +179,9 @@ export default function PeriodosPage() {
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando períodos..." />
+          </div>
         ) : periodos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <CalendarRange className="w-8 h-8 mb-2 opacity-30" />

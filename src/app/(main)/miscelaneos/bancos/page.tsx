@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, Pencil, ArrowLeft, Banknote } from 'lucide-react'
 import Link from 'next/link'
 import Drawer from '@/components/drawer'
+import Loading from '@/components/loading'
 
 type Banco = { id: string; nombre: string; codigo: string; activo: boolean }
 const EMPTY = { nombre: '', codigo: '' }
@@ -98,7 +99,9 @@ export default function BancosParamsPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Cargando...</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            <Loading texto="Cargando bancos..." />
+          </div>
         ) : bancos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Banknote className="w-8 h-8 mb-2 opacity-30" />

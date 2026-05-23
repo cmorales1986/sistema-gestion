@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, Lock
 } from 'lucide-react'
 import Link from 'next/link'
+import Loading from '@/components/loading'
 
 type MovimientoBancario = {
   id:            string
@@ -144,7 +145,7 @@ export default function DetalleConciliacionPage() {
     cargar()
   }
 
-  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Cargando...</div>
+  if (loading) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm"><Loading texto="Cargando conciliación..." /></div>
   if (!conciliacion) return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Conciliación no encontrada</div>
 
   const simbolo = conciliacion.cuenta.moneda?.simbolo || 'Gs.'

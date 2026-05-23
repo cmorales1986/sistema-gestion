@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Truck, Users, ShoppingCart,
   TrendingUp, Package, FileText, ChevronRight,
   Tag, BookOpen, Settings, Building2, ChevronDown,
-  Landmark, Lock, Banknote,
+  Landmark, Lock, ArrowLeftRight,
 } from 'lucide-react'
 
 type NavItem = {
@@ -53,7 +53,14 @@ const NAV_ITEMS: NavItem[] = [
       { href: '/bancos', label: 'Bancos', modulo: 'BANCOS' },
     ],
   },
-  { href: '/stock',       label: 'Stock',       icon: Package },
+  {
+    label: 'Stock',
+    icon: Package,
+    children: [
+      { href: '/stock',              label: 'Inventario' },
+      { href: '/stock/remisiones',   label: 'Remisiones',  modulo: 'REMISIONES' },
+    ],
+  },
   { href: '/reportes',    label: 'Reportes',    icon: FileText },
   { href: '/miscelaneos', label: 'Parámetros',  icon: Settings },
   { href: '/perfil',      label: 'Mi Empresa',  icon: Building2 },
@@ -111,13 +118,16 @@ export default function Sidebar() {
   }
 
   function isActiveChild(href: string) {
-    if (href === '/compras') return pathname === '/compras' || (pathname.startsWith('/compras/') && !pathname.startsWith('/compras/pagos'))
-    if (href === '/ventas')  return pathname === '/ventas'  || (pathname.startsWith('/ventas/')  && !pathname.startsWith('/ventas/cobros'))
+    if (href === '/compras')         return pathname === '/compras' || (pathname.startsWith('/compras/') && !pathname.startsWith('/compras/pagos'))
+    if (href === '/ventas')          return pathname === '/ventas'  || (pathname.startsWith('/ventas/')  && !pathname.startsWith('/ventas/cobros'))
+    if (href === '/stock')           return pathname === '/stock'
+    if (href === '/stock/remisiones') return pathname === '/stock/remisiones' || pathname.startsWith('/stock/remisiones/')
     return pathname === href || pathname.startsWith(href + '/')
   }
 
   return (
     <aside
+      id="tour-sidebar-nav"
       className="fixed left-0 top-0 h-screen w-60 flex flex-col z-40"
       style={{ backgroundColor: colorPrimario }}
     >
@@ -220,7 +230,10 @@ export default function Sidebar() {
                             }
                           }}
                         >
-                          <ChevronRight className="w-3 h-3 shrink-0" />
+                          {child.href === '/stock/remisiones'
+                            ? <ArrowLeftRight className="w-3 h-3 shrink-0" />
+                            : <ChevronRight className="w-3 h-3 shrink-0" />
+                          }
                           <span className="flex-1">{child.label}</span>
                           {bloqueado && <Lock className="w-3 h-3 shrink-0 opacity-50" />}
                         </Link>
