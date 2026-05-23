@@ -1,3 +1,4 @@
+// src/app/api/compras/pagos/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
@@ -11,10 +12,10 @@ export async function GET(req: NextRequest) {
 
   const empresaId = await getEmpresaId(session)
   const { searchParams } = new URL(req.url)
-  const desde      = searchParams.get('desde')      || ''
-  const hasta      = searchParams.get('hasta')      || ''
-  const proveedorId = searchParams.get('proveedorId') || ''
-  const medioPago  = searchParams.get('medioPago')  || ''
+  const desde       = searchParams.get('desde')       || ''
+  const hasta       = searchParams.get('hasta')        || ''
+  const proveedorId = searchParams.get('proveedorId')  || ''
+  const medioPago   = searchParams.get('medioPago')    || ''
 
   const pagos = await prisma.pagoCompra.findMany({
     where: {
@@ -25,8 +26,8 @@ export async function GET(req: NextRequest) {
           lte: new Date(hasta + 'T23:59:59'),
         }
       }),
-      ...(medioPago    && { medioPago: medioPago as any }),
-      ...(proveedorId  && { compra: { proveedorId } }),
+      ...(medioPago   && { medioPago: medioPago as any }),
+      ...(proveedorId && { compra: { proveedorId } }),
     },
     include: {
       compra: {
@@ -65,6 +66,11 @@ export async function POST(req: NextRequest) {
   if (monto > saldo)
     return NextResponse.json({ error: `El monto supera el saldo de Gs. ${saldo}` }, { status: 400 })
 
+  // Crear movimiento bancario solo si viene cuentaBancariaId (plan Pro)
+  // Para plan Básico simplemente no se envía y se omite sin error
+  const crearMovBancario = ['CHEQUE', 'TRANSFERENCIA'].includes(body.medioPago)
+    && !!body.cuentaBancariaId
+
   const resultado = await prisma.$transaction(async (tx) => {
     const pago = await tx.pagoCompra.create({
       data: {
@@ -87,6 +93,7 @@ export async function POST(req: NextRequest) {
       data: { montoPagado: nuevoMontoPagado, estadoPago }
     })
 
+    // ── EFECTIVO → movimiento de caja ────────────────────────────
     if (body.medioPago === 'EFECTIVO') {
       const cajaAbierta = await tx.aperturaCaja.findFirst({
         where: { empresaId, estado: 'ABIERTA' }
@@ -106,10 +113,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── CHEQUE o TRANSFERENCIA + cuenta bancaria → movimiento PENDIENTE (solo Pro) ──
+    if (crearMovBancario) {
+      const concepto = body.medioPago === 'CHEQUE'
+        ? `Cheque ${body.nroReferencia ? '#' + body.nroReferencia + ' — ' : ''}Pago factura ${compra.nroComprobante || body.compraId}`
+        : `Transferencia${body.nroReferencia ? ' ' + body.nroReferencia : ''} — Pago factura ${compra.nroComprobante || body.compraId}`
+
+      await tx.movimientoBancario.create({
+        data: {
+          cuentaId:       body.cuentaBancariaId,
+          empresaId,
+          tipo:           'DEBITO',
+          concepto,
+          monto,
+          fecha:          new Date(body.fecha),
+          estado:         'PENDIENTE',
+          referenciaTipo: 'PAGO_COMPRA',
+          referenciaId:   pago.id,
+        }
+      })
+    }
+
     return pago
   })
 
-  // ← Auditoría FUERA de la transacción, ahora resultado ya existe
   await registrarAuditoria({
     empresaId,
     usuarioId,
@@ -117,11 +144,12 @@ export async function POST(req: NextRequest) {
     accion:      ACCIONES.PAGO,
     descripcion: `Pago de Gs. ${monto} — ${body.medioPago} — compra ${compra.nroComprobante || body.compraId}`,
     metadata: {
-      pagoId:        resultado.id,
-      compraId:      body.compraId,
+      pagoId:           resultado.id,
+      compraId:         body.compraId,
       monto,
-      medioPago:     body.medioPago,
-      nroReferencia: body.nroReferencia || null,
+      medioPago:        body.medioPago,
+      nroReferencia:    body.nroReferencia    || null,
+      cuentaBancariaId: body.cuentaBancariaId || null,
     }
   })
 

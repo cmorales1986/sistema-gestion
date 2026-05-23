@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ChevronDown, ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
+import { usePlan } from "@/lib/use-plan";
 
 type Cliente = { id: string; nombre: string };
 type Almacen = { id: string; nombre: string };
@@ -35,6 +36,11 @@ type Timbrado = {
   serie2: string;
   siguiente: number;
   hasta: number;
+};
+type CuentaBancaria = {
+  id: string;
+  nroCuenta: string;
+  banco: { nombre: string; codigo: string };
 };
 
 type DetalleForm = {
@@ -66,6 +72,9 @@ function calcIVA(subtotal: number, pct: number) {
 export default function NuevaVentaPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { tieneModulo } = usePlan();
+  const tieneBancos = tieneModulo("BANCOS");
+
   const user = session?.user as any;
   const colorPrimario = user?.colorPrimario || "#1E3A5F";
   const colorSecundario = user?.colorSecundario || "#2E6DA4";
@@ -75,8 +84,8 @@ export default function NuevaVentaPage() {
   const [condiciones, setCondiciones] = useState<CondicionPago[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
+  const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
 
-  // ── Artículos: lista completa cargada al inicio + filtro local ──
   const [todosArticulos, setTodosArticulos] = useState<Articulo[]>([]);
   const [articulosFiltrados, setArticulosFiltrados] = useState<Articulo[]>([]);
   const [busqArticulo, setBusqArticulo] = useState("");
@@ -111,10 +120,11 @@ export default function NuevaVentaPage() {
     medioPago: "EFECTIVO",
     nroReferencia: "",
     observacion: "",
+    cuentaBancariaId: "",
   });
   const [guardandoCobro, setGuardandoCobro] = useState(false);
 
-  // ── Carga inicial de datos ──
+  // ── Carga inicial ──
   useEffect(() => {
     fetch("/api/clientes").then((r) => r.json()).then(setClientes);
     fetch("/api/almacenes").then((r) => r.json()).then(setAlmacenes);
@@ -125,39 +135,30 @@ export default function NuevaVentaPage() {
       if (principal) setCabecera((prev) => ({ ...prev, monedaId: principal.id }));
     });
     fetch("/api/impuestos").then((r) => r.json()).then(setImpuestos);
+    fetch("/api/articulos?limit=9999").then((r) => r.json()).then((data) => {
+      setTodosArticulos(data);
+      setArticulosFiltrados(data);
+    });
+    // Solo cargar cuentas si tiene el módulo BANCOS
+    if (tieneBancos) {
+      fetch("/api/bancos/cuentas").then((r) => r.json()).then(setCuentasBancarias);
+    }
+  }, [tieneBancos]);
 
-    // ── Cargar TODOS los artículos de una sola vez ──
-    fetch("/api/articulos?limit=9999")
-      .then((r) => r.json())
-      .then((data) => {
-        setTodosArticulos(data);
-        setArticulosFiltrados(data); // mostrar todos al abrir
-      });
-  }, []);
-
-  // ── Timbrado activo ──
   useEffect(() => {
-    fetch("/api/timbrados/activo")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.timbrado && data.nroFormateado) {
-          setTimbrado(data.timbrado);
-          // Solo autocompletar si el tipo actual es FACTURA
-          setCabecera((prev) => ({
-            ...prev,
-            nroComprobante:
-              prev.tipoComprobante === "FACTURA" ? data.nroFormateado : "",
-          }));
-        }
-      });
+    fetch("/api/timbrados/activo").then((r) => r.json()).then((data) => {
+      if (data.timbrado && data.nroFormateado) {
+        setTimbrado(data.timbrado);
+        setCabecera((prev) => ({
+          ...prev,
+          nroComprobante: prev.tipoComprobante === "FACTURA" ? data.nroFormateado : "",
+        }));
+      }
+    });
   }, []);
 
-  // ── Cuando cambia el tipo de comprobante ──
-  // Si es FACTURA → poner nro del timbrado (readonly)
-  // Si es otro → limpiar para que el usuario escriba libremente
   useEffect(() => {
     if (cabecera.tipoComprobante === "FACTURA" && timbrado) {
-      // recalcular nroFormateado desde el timbrado
       const nro = String(timbrado.siguiente).padStart(7, "0");
       const formatted = `${timbrado.serie1}-${timbrado.serie2}-${nro}`;
       setCabecera((prev) => ({ ...prev, nroComprobante: formatted }));
@@ -167,21 +168,22 @@ export default function NuevaVentaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cabecera.tipoComprobante]);
 
-  // ── Filtro local de artículos (sin llamada a la API) ──
   useEffect(() => {
     const q = busqArticulo.trim().toLowerCase();
-    if (!q) {
-      setArticulosFiltrados(todosArticulos);
-      return;
-    }
+    if (!q) { setArticulosFiltrados(todosArticulos); return; }
     setArticulosFiltrados(
       todosArticulos.filter(
-        (a) =>
-          a.nombre.toLowerCase().includes(q) ||
-          (a.codigo && a.codigo.toLowerCase().includes(q))
+        (a) => a.nombre.toLowerCase().includes(q) || (a.codigo && a.codigo.toLowerCase().includes(q))
       )
     );
   }, [busqArticulo, todosArticulos]);
+
+  // Limpiar cuenta bancaria cuando cambia el medio de pago
+  useEffect(() => {
+    if (!["CHEQUE", "TRANSFERENCIA"].includes(formCobro.medioPago)) {
+      setFormCobro((prev) => ({ ...prev, cuentaBancariaId: "" }));
+    }
+  }, [formCobro.medioPago]);
 
   function agregarArticulo(a: Articulo) {
     const impuesto = impuestos.find((i) => i.id === a.impuestoId);
@@ -212,11 +214,7 @@ export default function NuevaVentaPage() {
           const imp = impuestos.find((im) => im.id === valor);
           nuevo.porcentajeIva = imp?.porcentaje || 0;
         }
-        nuevo.subtotal = calcSubtotal(
-          Number(nuevo.cantidad),
-          Number(nuevo.precioUnitario),
-          Number(nuevo.descuento)
-        );
+        nuevo.subtotal = calcSubtotal(Number(nuevo.cantidad), Number(nuevo.precioUnitario), Number(nuevo.descuento));
         return nuevo;
       })
     );
@@ -229,24 +227,20 @@ export default function NuevaVentaPage() {
   const subtotalBruto = detalles.reduce((a, d) => a + d.subtotal, 0);
   const descuentoMonto = subtotalBruto * (cabecera.descuento / 100);
   const subtotalNeto = subtotalBruto - descuentoMonto;
-  const totalIva5 = detalles
-    .filter((d) => d.porcentajeIva === 5)
-    .reduce((a, d) => a + calcIVA(d.subtotal, 5), 0);
-  const totalIva10 = detalles
-    .filter((d) => d.porcentajeIva === 10)
-    .reduce((a, d) => a + calcIVA(d.subtotal, 10), 0);
+  const totalIva5 = detalles.filter((d) => d.porcentajeIva === 5).reduce((a, d) => a + calcIVA(d.subtotal, 5), 0);
+  const totalIva10 = detalles.filter((d) => d.porcentajeIva === 10).reduce((a, d) => a + calcIVA(d.subtotal, 10), 0);
   const total = subtotalNeto;
   const monedaSeleccionada = monedas.find((m) => m.id === cabecera.monedaId);
-
-  // ── ¿El nro de comprobante es readonly? Solo para FACTURA con timbrado ──
   const nroReadonly = cabecera.tipoComprobante === "FACTURA" && !!timbrado;
+
+  // ── ¿El medio de pago requiere cuenta bancaria? ──
+  const cobroRequiereCuenta = tieneBancos && ["CHEQUE", "TRANSFERENCIA"].includes(formCobro.medioPago);
 
   async function guardar(estado: "BORRADOR" | "CONFIRMADA") {
     if (!cabecera.clienteId) { setError("Seleccioná un cliente"); return; }
     if (!cabecera.almacenId) { setError("Seleccioná un almacén"); return; }
     if (estado === "CONFIRMADA" && !cabecera.nroComprobante.trim()) {
-      setError("El número de comprobante es requerido para confirmar");
-      return;
+      setError("El número de comprobante es requerido para confirmar"); return;
     }
     if (detalles.length === 0) { setError("Agregá al menos un artículo"); return; }
 
@@ -258,7 +252,6 @@ export default function NuevaVentaPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...cabecera,
-        // Solo enviar timbradoId si es FACTURA
         timbradoId: cabecera.tipoComprobante === "FACTURA" ? (timbrado?.id || null) : null,
         estado,
         subtotal: subtotalNeto,
@@ -293,7 +286,13 @@ export default function NuevaVentaPage() {
 
   async function registrarCobro() {
     if (!ventaCreada) return;
+    // Validar cuenta bancaria si es requerida
+    if (cobroRequiereCuenta && !formCobro.cuentaBancariaId) {
+      setError("Seleccioná la cuenta bancaria donde se acreditará el cobro");
+      return;
+    }
     setGuardandoCobro(true);
+    setError("");
     const res = await fetch("/api/ventas/cobros", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -304,6 +303,8 @@ export default function NuevaVentaPage() {
         medioPago: formCobro.medioPago,
         nroReferencia: formCobro.nroReferencia || null,
         observacion: formCobro.observacion || null,
+        // Solo enviar si tiene bancos y corresponde
+        cuentaBancariaId: cobroRequiereCuenta ? formCobro.cuentaBancariaId : null,
       }),
     });
     if (res.ok) {
@@ -318,10 +319,7 @@ export default function NuevaVentaPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <Link
-          href="/ventas"
-          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
+        <Link href="/ventas" className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
@@ -330,14 +328,11 @@ export default function NuevaVentaPage() {
         </div>
       </div>
 
-      {/* Warning si no hay timbrado y es FACTURA */}
       {!timbrado && cabecera.tipoComprobante === "FACTURA" && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4">
           <p className="text-orange-700 text-sm">
             ⚠️ No hay timbrado activo. Configuralo en{" "}
-            <Link href="/miscelaneos/timbrados" className="font-medium underline">
-              Parámetros → Timbrados
-            </Link>{" "}
+            <Link href="/miscelaneos/timbrados" className="font-medium underline">Parámetros → Timbrados</Link>{" "}
             para generar números de comprobante automáticamente.
           </p>
         </div>
@@ -348,164 +343,98 @@ export default function NuevaVentaPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Datos del comprobante</h2>
           <div className="grid grid-cols-3 gap-4">
-
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">Cliente *</label>
               <div className="relative">
-                <select
-                  value={cabecera.clienteId}
-                  onChange={(e) => setCabecera({ ...cabecera, clienteId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.clienteId} onChange={(e) => setCabecera({ ...cabecera, clienteId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná un cliente</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
+                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Fecha *</label>
-              <input
-                type="date"
-                value={cabecera.fecha}
-                onChange={(e) => setCabecera({ ...cabecera, fecha: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+              <input type="date" value={cabecera.fecha} onChange={(e) => setCabecera({ ...cabecera, fecha: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
             </div>
-
-            {/* ── TIPO COMPROBANTE ── */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Tipo comprobante</label>
               <div className="relative">
-                <select
-                  value={cabecera.tipoComprobante}
-                  onChange={(e) => setCabecera({ ...cabecera, tipoComprobante: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
-                  {TIPOS_COMPROBANTE.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                <select value={cabecera.tipoComprobante} onChange={(e) => setCabecera({ ...cabecera, tipoComprobante: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
+                  {TIPOS_COMPROBANTE.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
-            {/* ── NRO COMPROBANTE ──
-                - FACTURA + timbrado → readonly, autocompletado
-                - FACTURA sin timbrado → editable con advertencia
-                - Otros tipos → editable libre, sin restricción
-            */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Nro. comprobante
                 {cabecera.tipoComprobante === "FACTURA" && timbrado && (
-                  <span className="ml-2 text-xs text-green-600 font-normal">
-                    — timbrado {timbrado.numero}
-                  </span>
+                  <span className="ml-2 text-xs text-green-600 font-normal">— timbrado {timbrado.numero}</span>
                 )}
                 {cabecera.tipoComprobante !== "FACTURA" && (
-                  <span className="ml-2 text-xs text-gray-400 font-normal">
-                    — ingreso libre
-                  </span>
+                  <span className="ml-2 text-xs text-gray-400 font-normal">— ingreso libre</span>
                 )}
               </label>
-              <input
-                value={cabecera.nroComprobante}
-                onChange={(e) =>
-                  !nroReadonly && setCabecera({ ...cabecera, nroComprobante: e.target.value })
-                }
-                placeholder={
-                  cabecera.tipoComprobante === "FACTURA"
-                    ? "001-001-0000001"
-                    : "Nro. de referencia (opcional)"
-                }
+              <input value={cabecera.nroComprobante}
+                onChange={(e) => !nroReadonly && setCabecera({ ...cabecera, nroComprobante: e.target.value })}
+                placeholder={cabecera.tipoComprobante === "FACTURA" ? "001-001-0000001" : "Nro. de referencia (opcional)"}
                 readOnly={nroReadonly}
                 className={`w-full px-3 py-2.5 rounded-lg border text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-colors ${
-                  nroReadonly
-                    ? "bg-gray-50 border-gray-200 text-gray-600 cursor-default"
-                    : "border-gray-200 text-gray-900 bg-white"
-                }`}
-              />
+                  nroReadonly ? "bg-gray-50 border-gray-200 text-gray-600 cursor-default" : "border-gray-200 text-gray-900 bg-white"
+                }`} />
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Almacén *</label>
               <div className="relative">
-                <select
-                  value={cabecera.almacenId}
-                  onChange={(e) => setCabecera({ ...cabecera, almacenId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.almacenId} onChange={(e) => setCabecera({ ...cabecera, almacenId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná un almacén</option>
-                  {almacenes.map((a) => (
-                    <option key={a.id} value={a.id}>{a.nombre}</option>
-                  ))}
+                  {almacenes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Condición de pago</label>
               <div className="relative">
-                <select
-                  value={cabecera.condicionPagoId}
-                  onChange={(e) => setCabecera({ ...cabecera, condicionPagoId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.condicionPagoId} onChange={(e) => setCabecera({ ...cabecera, condicionPagoId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná condición</option>
-                  {condiciones.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
+                  {condiciones.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Moneda</label>
               <div className="relative">
-                <select
-                  value={cabecera.monedaId}
-                  onChange={(e) => setCabecera({ ...cabecera, monedaId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.monedaId} onChange={(e) => setCabecera({ ...cabecera, monedaId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná moneda</option>
-                  {monedas.map((m) => (
-                    <option key={m.id} value={m.id}>{m.codigo} — {m.nombre}</option>
-                  ))}
+                  {monedas.map((m) => <option key={m.id} value={m.id}>{m.codigo} — {m.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
             {monedaSeleccionada && !monedaSeleccionada.principal && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Tipo de cambio (Gs. por 1 {monedaSeleccionada.codigo})
                 </label>
-                <input
-                  type="number"
-                  value={cabecera.tipoCambio}
-                  onChange={(e) =>
-                    setCabecera({ ...cabecera, tipoCambio: parseFloat(e.target.value) || 1 })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-                />
+                <input type="number" value={cabecera.tipoCambio}
+                  onChange={(e) => setCabecera({ ...cabecera, tipoCambio: parseFloat(e.target.value) || 1 })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
               </div>
             )}
-
             <div className="col-span-3">
               <label className="block text-xs font-medium text-gray-700 mb-1">Observación</label>
-              <input
-                value={cabecera.observacion}
-                onChange={(e) => setCabecera({ ...cabecera, observacion: e.target.value })}
+              <input value={cabecera.observacion} onChange={(e) => setCabecera({ ...cabecera, observacion: e.target.value })}
                 placeholder="Observaciones opcionales"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
             </div>
           </div>
         </div>
@@ -515,61 +444,41 @@ export default function NuevaVentaPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700">Ítems</h2>
             <div className="relative">
-              <button
-                onClick={() => { setShowBusq(!showBusq); setBusqArticulo(""); }}
+              <button onClick={() => { setShowBusq(!showBusq); setBusqArticulo(""); }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors"
                 style={{ backgroundColor: colorPrimario }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colorSecundario)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colorPrimario)}
-              >
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colorPrimario)}>
                 <Plus className="w-4 h-4" /> Agregar ítem
               </button>
-
-              {/* ── DROPDOWN DE BÚSQUEDA DE ARTÍCULOS ── */}
               {showBusq && (
                 <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-80">
-                  {/* Buscador */}
                   <div className="p-3 border-b border-gray-100">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        autoFocus
-                        value={busqArticulo}
-                        onChange={(e) => setBusqArticulo(e.target.value)}
+                      <input autoFocus value={busqArticulo} onChange={(e) => setBusqArticulo(e.target.value)}
                         placeholder="Buscar por nombre o código..."
-                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      />
+                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none" />
                     </div>
                     <p className="text-xs text-gray-400 mt-1.5 pl-1">
                       {articulosFiltrados.length} artículo{articulosFiltrados.length !== 1 ? "s" : ""}
                       {busqArticulo ? " encontrado" + (articulosFiltrados.length !== 1 ? "s" : "") : " disponible" + (articulosFiltrados.length !== 1 ? "s" : "")}
                     </p>
                   </div>
-
-                  {/* Lista */}
                   <div className="max-h-56 overflow-y-auto">
                     {articulosFiltrados.length === 0 ? (
-                      <p className="text-xs text-gray-400 text-center py-6">
-                        Sin resultados para "{busqArticulo}"
-                      </p>
+                      <p className="text-xs text-gray-400 text-center py-6">Sin resultados para "{busqArticulo}"</p>
                     ) : (
                       articulosFiltrados.map((a) => (
-                        <button
-                          key={a.id}
-                          onClick={() => agregarArticulo(a)}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
-                        >
+                        <button key={a.id} onClick={() => agregarArticulo(a)}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{a.nombre}</p>
-                              <p className="text-xs text-gray-400">
-                                {a.codigo ? `${a.codigo} · ` : ""}{a.unidadMedida}
-                              </p>
+                              <p className="text-xs text-gray-400">{a.codigo ? `${a.codigo} · ` : ""}{a.unidadMedida}</p>
                             </div>
                             {a.precioVenta != null && a.precioVenta > 0 && (
-                              <span className="text-xs font-semibold text-gray-700 shrink-0">
-                                Gs. {formatGs(a.precioVenta)}
-                              </span>
+                              <span className="text-xs font-semibold text-gray-700 shrink-0">Gs. {formatGs(a.precioVenta)}</span>
                             )}
                           </div>
                         </button>
@@ -608,49 +517,32 @@ export default function NuevaVentaPage() {
                         <p className="text-xs text-gray-400">{d.unidadMedida}</p>
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number" min="0.01" step="0.01"
-                          value={d.cantidad}
+                        <input type="number" min="0.01" step="0.01" value={d.cantidad}
                           onChange={(e) => actualizarDetalle(i, "cantidad", parseFloat(e.target.value) || 0)}
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number" min="0"
-                          value={d.precioUnitario}
+                        <input type="number" min="0" value={d.precioUnitario}
                           onChange={(e) => actualizarDetalle(i, "precioUnitario", parseFloat(e.target.value) || 0)}
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number" min="0" max="100"
-                          value={d.descuento}
+                        <input type="number" min="0" max="100" value={d.descuento}
                           onChange={(e) => actualizarDetalle(i, "descuento", parseFloat(e.target.value) || 0)}
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1 pl-3">
-                        <select
-                          value={d.impuestoId}
-                          onChange={(e) => actualizarDetalle(i, "impuestoId", e.target.value)}
-                          className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none appearance-none"
-                        >
+                        <select value={d.impuestoId} onChange={(e) => actualizarDetalle(i, "impuestoId", e.target.value)}
+                          className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none appearance-none">
                           <option value="">Sin impuesto</option>
-                          {impuestos.map((imp) => (
-                            <option key={imp.id} value={imp.id}>{imp.nombre}</option>
-                          ))}
+                          {impuestos.map((imp) => <option key={imp.id} value={imp.id}>{imp.nombre}</option>)}
                         </select>
                       </td>
                       <td className="py-2 px-1 text-right text-sm font-medium text-gray-900">
                         {monedaSeleccionada?.simbolo || "Gs."} {formatGs(d.subtotal)}
                       </td>
                       <td className="py-2 pl-2">
-                        <button
-                          onClick={() => eliminarDetalle(i)}
-                          className="p-1 rounded text-gray-300 hover:text-red-500 transition-colors"
-                        >
+                        <button onClick={() => eliminarDetalle(i)} className="p-1 rounded text-gray-300 hover:text-red-500 transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -672,32 +564,23 @@ export default function NuevaVentaPage() {
               </div>
               {totalIva5 > 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>IVA 5%</span>
-                  <span>Gs. {formatGs(totalIva5)}</span>
+                  <span>IVA 5%</span><span>Gs. {formatGs(totalIva5)}</span>
                 </div>
               )}
               {totalIva10 > 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>IVA 10%</span>
-                  <span>Gs. {formatGs(totalIva10)}</span>
+                  <span>IVA 10%</span><span>Gs. {formatGs(totalIva10)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <span>Descuento general</span>
-                  <input
-                    type="number" min="0" max="100"
-                    value={cabecera.descuento}
-                    onChange={(e) =>
-                      setCabecera({ ...cabecera, descuento: parseFloat(e.target.value) || 0 })
-                    }
-                    className="w-14 text-center px-1 py-0.5 rounded border border-gray-200 text-xs"
-                  />
+                  <input type="number" min="0" max="100" value={cabecera.descuento}
+                    onChange={(e) => setCabecera({ ...cabecera, descuento: parseFloat(e.target.value) || 0 })}
+                    className="w-14 text-center px-1 py-0.5 rounded border border-gray-200 text-xs" />
                   <span className="text-xs">%</span>
                 </div>
-                {descuentoMonto > 0 && (
-                  <span className="text-red-500">- Gs. {formatGs(descuentoMonto)}</span>
-                )}
+                {descuentoMonto > 0 && <span className="text-red-500">- Gs. {formatGs(descuentoMonto)}</span>}
               </div>
               <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
@@ -714,26 +597,17 @@ export default function NuevaVentaPage() {
         )}
 
         <div className="flex gap-3 justify-end pb-6">
-          <Link
-            href="/ventas"
-            className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-          >
+          <Link href="/ventas" className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
             Cancelar
           </Link>
-          <button
-            onClick={() => guardar("BORRADOR")}
-            disabled={guardando}
+          <button onClick={() => guardar("BORRADOR")} disabled={guardando}
             className="px-6 py-2.5 rounded-lg text-sm font-medium border-2 transition-colors disabled:opacity-50"
-            style={{ borderColor: colorPrimario, color: colorPrimario }}
-          >
+            style={{ borderColor: colorPrimario, color: colorPrimario }}>
             Guardar borrador
           </button>
-          <button
-            onClick={() => guardar("CONFIRMADA")}
-            disabled={guardando}
+          <button onClick={() => guardar("CONFIRMADA")} disabled={guardando}
             className="px-6 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-            style={{ backgroundColor: colorPrimario }}
-          >
+            style={{ backgroundColor: colorPrimario }}>
             {guardando ? "Guardando..." : "Confirmar venta"}
           </button>
         </div>
@@ -751,55 +625,82 @@ export default function NuevaVentaPage() {
               <h2 className="text-lg font-bold text-gray-900">Registrar cobro</h2>
               <p className="text-gray-500 text-sm mt-1">
                 Factura {ventaCreada.nroComprobante || "—"} —{" "}
-                <span className="font-semibold text-gray-900">
-                  Gs. {new Intl.NumberFormat("es-PY").format(ventaCreada.total)}
-                </span>
+                <span className="font-semibold text-gray-900">Gs. {new Intl.NumberFormat("es-PY").format(ventaCreada.total)}</span>
               </p>
             </div>
 
             <div className="space-y-4">
+              {/* Medio de pago */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-2">Medio de cobro *</label>
                 <div className="grid grid-cols-3 gap-2">
                   {["EFECTIVO", "CHEQUE", "TRANSFERENCIA", "TARJETA", "OTRO"].map((m) => (
-                    <button
-                      key={m} type="button"
-                      onClick={() => setFormCobro({ ...formCobro, medioPago: m })}
+                    <button key={m} type="button"
+                      onClick={() => setFormCobro({ ...formCobro, medioPago: m, cuentaBancariaId: "" })}
                       className="py-2 rounded-lg text-xs font-medium border-2 transition-all"
-                      style={
-                        formCobro.medioPago === m
-                          ? { borderColor: colorPrimario, backgroundColor: `${colorPrimario}10`, color: colorPrimario }
-                          : { borderColor: "#e5e7eb", color: "#6b7280" }
-                      }
-                    >
+                      style={formCobro.medioPago === m
+                        ? { borderColor: colorPrimario, backgroundColor: `${colorPrimario}10`, color: colorPrimario }
+                        : { borderColor: "#e5e7eb", color: "#6b7280" }
+                      }>
                       {m}
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Nro referencia para cheque o transferencia */}
               {(formCobro.medioPago === "CHEQUE" || formCobro.medioPago === "TRANSFERENCIA") && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     {formCobro.medioPago === "CHEQUE" ? "Nro. de cheque" : "Nro. de transferencia"}
                   </label>
-                  <input
-                    value={formCobro.nroReferencia}
+                  <input value={formCobro.nroReferencia}
                     onChange={(e) => setFormCobro({ ...formCobro, nroReferencia: e.target.value })}
                     placeholder={formCobro.medioPago === "CHEQUE" ? "000123" : "REF-123456"}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-                  />
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
+                </div>
+              )}
+
+              {/* ── CUENTA BANCARIA (solo plan Pro con módulo BANCOS) ── */}
+              {cobroRequiereCuenta && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    {formCobro.medioPago === "CHEQUE"
+                      ? "Cuenta donde se depositará el cheque *"
+                      : "Cuenta donde se acreditará la transferencia *"}
+                  </label>
+                  {cuentasBancarias.length === 0 ? (
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                      <p className="text-orange-600 text-xs">
+                        No hay cuentas bancarias configuradas.{" "}
+                        <Link href="/bancos/cuentas/nueva" className="font-medium underline">Configurar cuenta</Link>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select value={formCobro.cuentaBancariaId}
+                        onChange={(e) => setFormCobro({ ...formCobro, cuentaBancariaId: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none appearance-none">
+                        <option value="">Seleccioná una cuenta</option>
+                        {cuentasBancarias.map((c) => (
+                          <option key={c.id} value={c.id}>{c.banco.nombre} — {c.nroCuenta}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    💡 Se creará un movimiento bancario pendiente para conciliar después.
+                  </p>
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Observación</label>
-                <input
-                  value={formCobro.observacion}
+                <input value={formCobro.observacion}
                   onChange={(e) => setFormCobro({ ...formCobro, observacion: e.target.value })}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-                />
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
               </div>
 
               {formCobro.medioPago === "EFECTIVO" && (
@@ -818,18 +719,13 @@ export default function NuevaVentaPage() {
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => router.push("/ventas")}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => router.push("/ventas")}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
                 Omitir
               </button>
-              <button
-                onClick={registrarCobro}
-                disabled={guardandoCobro}
+              <button onClick={registrarCobro} disabled={guardandoCobro}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: colorPrimario }}
-              >
+                style={{ backgroundColor: colorPrimario }}>
                 {guardandoCobro ? "Registrando..." : "Confirmar cobro"}
               </button>
             </div>

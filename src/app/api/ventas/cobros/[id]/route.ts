@@ -1,3 +1,4 @@
+// src/app/api/ventas/cobros/[id]/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
@@ -20,6 +21,17 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
 
   if (!cobro) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
+  // Verificar que el movimiento bancario asociado no esté conciliado
+  const movBancario = await prisma.movimientoBancario.findFirst({
+    where: { referenciaId: id, referenciaTipo: 'COBRO_VENTA' }
+  })
+  if (movBancario?.estado === 'CONCILIADO') {
+    return NextResponse.json(
+      { error: 'No se puede eliminar un cobro que ya fue conciliado con el banco' },
+      { status: 400 }
+    )
+  }
+
   await prisma.$transaction(async (tx) => {
     // Revertir monto en la venta
     const nuevoMontoPagado = Math.max(0, cobro.venta.montoPagado - cobro.monto)
@@ -31,7 +43,7 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
       data: { montoPagado: nuevoMontoPagado, estadoPago }
     })
 
-    // Revertir movimiento en caja si existe
+    // Revertir movimiento de caja si existe
     const movimientoCaja = await tx.movimientoCaja.findFirst({
       where: { referenciaId: id }
     })
@@ -39,7 +51,11 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
       await tx.movimientoCaja.delete({ where: { id: movimientoCaja.id } })
     }
 
-    // Eliminar el cobro
+    // Revertir movimiento bancario PENDIENTE si existe
+    if (movBancario) {
+      await tx.movimientoBancario.delete({ where: { id: movBancario.id } })
+    }
+
     await tx.pagoVenta.delete({ where: { id } })
   })
 

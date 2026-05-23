@@ -8,6 +8,9 @@ import bcrypt from "bcryptjs";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
+// Cuántos segundos entre cada refresco del plan (5 minutos)
+const PLAN_REFRESH_INTERVAL = 60 * 5
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   session: { strategy: "jwt" },
@@ -16,6 +19,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+
+      // ── LOGIN INICIAL: se ejecuta solo cuando el usuario acaba de iniciar sesión ──
       if (user) {
         const dbUser = await prisma.usuario.findUnique({
           where: { email: user.email! },
@@ -27,46 +32,88 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (dbUser) {
-          token.id = dbUser.id;
-          token.rol = dbUser.rol;
-          token.empresaId = dbUser.empresaId;
-          token.empresaNombre = dbUser.empresa.nombre;
-          token.colorPrimario = dbUser.empresa.colorPrimario;
+          token.id              = dbUser.id;
+          token.rol             = dbUser.rol;
+          token.empresaId       = dbUser.empresaId;
+          token.empresaNombre   = dbUser.empresa.nombre;
+          token.colorPrimario   = dbUser.empresa.colorPrimario;
           token.colorSecundario = dbUser.empresa.colorSecundario;
-          token.logoUrl = dbUser.empresa.logoUrl;
-          token.planId = dbUser.empresa.planId;
-          token.planNombre = dbUser.empresa.plan?.nombre || "";
-          token.onboarding = dbUser.empresa.onboardingCompletado
+          token.logoUrl         = dbUser.empresa.logoUrl;
+          token.planId          = dbUser.empresa.planId;
+          token.planNombre      = dbUser.empresa.plan?.nombre || "";
+          token.onboarding      = dbUser.empresa.onboardingCompletado;
+          token.modulos         = (dbUser.empresa.plan?.modulos  || []).join(",");
+          token.reportes        = (dbUser.empresa.plan?.reportes || []).join(",");
+          token.limProv         = dbUser.empresa.plan?.limiteProveedores    ?? -1;
+          token.limCli          = dbUser.empresa.plan?.limiteClientes       ?? -1;
+          token.limArt          = dbUser.empresa.plan?.limiteArticulos      ?? -1;
+          token.limUsu          = dbUser.empresa.plan?.limiteUsuarios       ?? -1;
+          token.limFC           = dbUser.empresa.plan?.limiteFacturasCompra ?? -1;
+          token.limFV           = dbUser.empresa.plan?.limiteFacturasVenta  ?? -1;
+          token.planRefreshedAt = Math.floor(Date.now() / 1000);
+        }
 
-          // Guardá solo IDs/valores simples, no arrays grandes
-          token.modulos = (dbUser.empresa.plan?.modulos || []).join(",");
-          token.reportes = (dbUser.empresa.plan?.reportes || []).join(",");
-          token.limProv = dbUser.empresa.plan?.limiteProveedores ?? -1;
-          token.limCli = dbUser.empresa.plan?.limiteClientes ?? -1;
-          token.limArt = dbUser.empresa.plan?.limiteArticulos ?? -1;
-          token.limUsu = dbUser.empresa.plan?.limiteUsuarios ?? -1;
-          token.limFC = dbUser.empresa.plan?.limiteFacturasCompra ?? -1;
-          token.limFV = dbUser.empresa.plan?.limiteFacturasVenta ?? -1;
+        return token;
+      }
+
+      // ── REFRESCO PERIÓDICO DEL PLAN (cada 5 minutos) ──
+      // Esto permite que cambios de plan se reflejen sin re-login
+      const ahora         = Math.floor(Date.now() / 1000)
+      const ultimoRefresh = (token.planRefreshedAt as number) || 0
+
+      if (ahora - ultimoRefresh > PLAN_REFRESH_INTERVAL) {
+        try {
+          const dbUser = await prisma.usuario.findUnique({
+            where: { id: token.id as string },
+            include: {
+              empresa: {
+                include: { plan: true },
+              },
+            },
+          });
+
+          if (dbUser) {
+            token.planId          = dbUser.empresa.planId;
+            token.planNombre      = dbUser.empresa.plan?.nombre || "";
+            token.onboarding      = dbUser.empresa.onboardingCompletado;
+            token.colorPrimario   = dbUser.empresa.colorPrimario;
+            token.colorSecundario = dbUser.empresa.colorSecundario;
+            token.logoUrl         = dbUser.empresa.logoUrl;
+            token.empresaNombre   = dbUser.empresa.nombre;
+            token.modulos         = (dbUser.empresa.plan?.modulos  || []).join(",");
+            token.reportes        = (dbUser.empresa.plan?.reportes || []).join(",");
+            token.limProv         = dbUser.empresa.plan?.limiteProveedores    ?? -1;
+            token.limCli          = dbUser.empresa.plan?.limiteClientes       ?? -1;
+            token.limArt          = dbUser.empresa.plan?.limiteArticulos      ?? -1;
+            token.limUsu          = dbUser.empresa.plan?.limiteUsuarios       ?? -1;
+            token.limFC           = dbUser.empresa.plan?.limiteFacturasCompra ?? -1;
+            token.limFV           = dbUser.empresa.plan?.limiteFacturasVenta  ?? -1;
+            token.planRefreshedAt = ahora;
+          }
+        } catch (e) {
+          // Si falla el refresco, no rompemos la sesión — usamos el token existente
+          console.error("Error refreshing plan in JWT:", e)
         }
       }
+
       return token;
     },
 
     async session({ session, token }) {
       if (session.user) {
         const u = session.user as any;
-        u.id = token.id;
-        u.rol = token.rol;
-        u.empresaId = token.empresaId;
-        u.empresaNombre = token.empresaNombre;
-        u.colorPrimario = token.colorPrimario;
+        u.id              = token.id;
+        u.rol             = token.rol;
+        u.empresaId       = token.empresaId;
+        u.empresaNombre   = token.empresaNombre;
+        u.colorPrimario   = token.colorPrimario;
         u.colorSecundario = token.colorSecundario;
-        u.logoUrl = token.logoUrl;
-        u.planId = token.planId;
-        u.planNombre = token.planNombre;
-        u.onboarding = token.onboarding
+        u.logoUrl         = token.logoUrl;
+        u.planId          = token.planId;
+        u.planNombre      = token.planNombre;
+        u.onboarding      = token.onboarding;
 
-        // Reconstruir arrays desde strings
+        // Reconstruir arrays desde strings comprimidos
         u.modulos = token.modulos
           ? (token.modulos as string).split(",").filter(Boolean)
           : [];
@@ -74,23 +121,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ? (token.reportes as string).split(",").filter(Boolean)
           : [];
 
-        // Reconstruir limites (-1 = null = ilimitado)
+        // Reconstruir límites (-1 = null = ilimitado)
         u.limites = {
-          proveedores: token.limProv === -1 ? null : token.limProv,
-          clientes: token.limCli === -1 ? null : token.limCli,
-          articulos: token.limArt === -1 ? null : token.limArt,
-          usuarios: token.limUsu === -1 ? null : token.limUsu,
-          facturasCompra: token.limFC === -1 ? null : token.limFC,
-          facturasVenta: token.limFV === -1 ? null : token.limFV,
+          proveedores:    token.limProv === -1 ? null : token.limProv,
+          clientes:       token.limCli  === -1 ? null : token.limCli,
+          articulos:      token.limArt  === -1 ? null : token.limArt,
+          usuarios:       token.limUsu  === -1 ? null : token.limUsu,
+          facturasCompra: token.limFC   === -1 ? null : token.limFC,
+          facturasVenta:  token.limFV   === -1 ? null : token.limFV,
         };
       }
       return session;
     },
   },
+
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        email:    { label: "Email",    type: "email"    },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -112,15 +160,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (usuario.empresa.estado === "SUSPENDIDO") return null;
 
         return {
-          id: usuario.id,
-          name: usuario.nombre,
-          email: usuario.email,
-          rol: usuario.rol,
-          empresaId: usuario.empresaId,
-          empresaSlug: usuario.empresa.slug,
-          empresaNombre: usuario.empresa.nombre,
-          logoUrl: usuario.empresa.logoUrl,
-          colorPrimario: usuario.empresa.colorPrimario,
+          id:              usuario.id,
+          name:            usuario.nombre,
+          email:           usuario.email,
+          rol:             usuario.rol,
+          empresaId:       usuario.empresaId,
+          empresaSlug:     usuario.empresa.slug,
+          empresaNombre:   usuario.empresa.nombre,
+          logoUrl:         usuario.empresa.logoUrl,
+          colorPrimario:   usuario.empresa.colorPrimario,
           colorSecundario: usuario.empresa.colorSecundario,
         };
       },

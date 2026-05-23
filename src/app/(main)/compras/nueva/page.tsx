@@ -8,10 +8,11 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ChevronDown, ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
+import { usePlan } from "@/lib/use-plan";
 
 type Proveedor = { id: string; nombre: string };
-type Almacen = { id: string; nombre: string };
-type Articulo = {
+type Almacen   = { id: string; nombre: string };
+type Articulo  = {
   id: string;
   codigo: string | null;
   nombre: string;
@@ -28,17 +29,22 @@ type Moneda = {
   principal: boolean;
 };
 type Impuesto = { id: string; nombre: string; porcentaje: number };
+type CuentaBancaria = {
+  id:        string;
+  nroCuenta: string;
+  banco:     { nombre: string; codigo: string };
+};
 
 type DetalleForm = {
-  articuloId: string;
+  articuloId:     string;
   nombreArticulo: string;
-  unidadMedida: string;
-  cantidad: number;
-  precioUnitario: number;
-  descuento: number;
-  impuestoId: string;
-  porcentajeIva: number;
-  subtotal: number;
+  unidadMedida:   string;
+  cantidad:        number;
+  precioUnitario:  number;
+  descuento:       number;
+  impuestoId:      string;
+  porcentajeIva:   number;
+  subtotal:        number;
 };
 
 const TIPOS_COMPROBANTE = ["FACTURA", "TICKET", "RECIBO", "NOTA_PEDIDO"];
@@ -46,13 +52,11 @@ const TIPOS_COMPROBANTE = ["FACTURA", "TICKET", "RECIBO", "NOTA_PEDIDO"];
 function formatGs(n: number) {
   return new Intl.NumberFormat("es-PY").format(Math.round(n));
 }
-
 function calcSubtotal(cantidad: number, precio: number, descuento: number) {
   return cantidad * precio * (1 - descuento / 100);
 }
-
 function calcIVA(subtotal: number, porcentaje: number) {
-  if (porcentaje === 5) return subtotal / 21;
+  if (porcentaje === 5)  return subtotal / 21;
   if (porcentaje === 10) return subtotal / 11;
   return 0;
 }
@@ -60,107 +64,103 @@ function calcIVA(subtotal: number, porcentaje: number) {
 export default function NuevaCompraPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const user = session?.user as any;
-  const colorPrimario = user?.colorPrimario || "#1E3A5F";
-  const colorSecundario = user?.colorSecundario || "#2E6DA4";
+  const { tieneModulo } = usePlan();
+  const tieneBancos = tieneModulo("BANCOS");
 
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [almacenes, setAlmacenes] = useState<Almacen[]>([]);
-  const [condiciones, setCondiciones] = useState<CondicionPago[]>([]);
-  const [monedas, setMonedas] = useState<Moneda[]>([]);
-  const [impuestos, setImpuestos] = useState<Impuesto[]>([]);
-  const [articulosBusq, setArticulosBusq] = useState<Articulo[]>([]);
-  const [busqArticulo, setBusqArticulo] = useState("");
-  const [showBusq, setShowBusq] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState("");
+  const user = session?.user as any;
+  const colorPrimario   = user?.colorPrimario   || "#1E3A5F";
+  const colorSecundario = user?.colorSecundario  || "#2E6DA4";
+
+  const [proveedores,      setProveedores]      = useState<Proveedor[]>([]);
+  const [almacenes,        setAlmacenes]        = useState<Almacen[]>([]);
+  const [condiciones,      setCondiciones]      = useState<CondicionPago[]>([]);
+  const [monedas,          setMonedas]          = useState<Moneda[]>([]);
+  const [impuestos,        setImpuestos]        = useState<Impuesto[]>([]);
+  const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
+  const [articulosBusq,    setArticulosBusq]    = useState<Articulo[]>([]);
+  const [busqArticulo,     setBusqArticulo]     = useState("");
+  const [showBusq,         setShowBusq]         = useState(false);
+  const [guardando,        setGuardando]        = useState(false);
+  const [error,            setError]            = useState("");
 
   const [showModalPago, setShowModalPago] = useState(false);
-  const [compraCreada, setCompraCreada] = useState<{
+  const [compraCreada,  setCompraCreada]  = useState<{
     id: string;
     total: number;
     nroComprobante: string | null;
   } | null>(null);
   const [formPago, setFormPago] = useState({
-    medioPago: "EFECTIVO",
-    nroReferencia: "",
-    observacion: "",
+    medioPago:        "EFECTIVO",
+    nroReferencia:    "",
+    observacion:      "",
+    cuentaBancariaId: "",   // solo plan Pro
   });
   const [guardandoPago, setGuardandoPago] = useState(false);
 
   const [cabecera, setCabecera] = useState({
-    proveedorId: "",
-    almacenId: "",
-    fecha: new Date().toISOString().split("T")[0],
-    nroComprobante: "",
+    proveedorId:     "",
+    almacenId:       "",
+    fecha:           new Date().toISOString().split("T")[0],
+    nroComprobante:  "",
     tipoComprobante: "FACTURA",
     condicionPagoId: "",
-    monedaId: "",
-    tipoCambio: 1,
-    descuento: 0,
-    observacion: "",
+    monedaId:        "",
+    tipoCambio:      1,
+    descuento:       0,
+    observacion:     "",
   });
 
   const [detalles, setDetalles] = useState<DetalleForm[]>([]);
 
   useEffect(() => {
-    fetch("/api/proveedores")
-      .then((r) => r.json())
-      .then(setProveedores);
-    fetch("/api/almacenes")
-      .then((r) => r.json())
-      .then(setAlmacenes);
-    fetch("/api/condiciones-pago")
-      .then((r) => r.json())
-      .then(setCondiciones);
-    fetch("/api/monedas")
-      .then((r) => r.json())
-      .then((data) => {
-        setMonedas(data);
-        const principal = data.find((m: Moneda) => m.principal);
-        if (principal)
-          setCabecera((prev) => ({ ...prev, monedaId: principal.id }));
-      });
-    fetch("/api/impuestos")
-      .then((r) => r.json())
-      .then(setImpuestos);
-  }, []);
+    fetch("/api/proveedores").then((r) => r.json()).then(setProveedores);
+    fetch("/api/almacenes").then((r) => r.json()).then(setAlmacenes);
+    fetch("/api/condiciones-pago").then((r) => r.json()).then(setCondiciones);
+    fetch("/api/monedas").then((r) => r.json()).then((data) => {
+      setMonedas(data);
+      const principal = data.find((m: Moneda) => m.principal);
+      if (principal) setCabecera((prev) => ({ ...prev, monedaId: principal.id }));
+    });
+    fetch("/api/impuestos").then((r) => r.json()).then(setImpuestos);
+    // Solo cargar cuentas bancarias si tiene módulo BANCOS (plan Pro)
+    if (tieneBancos) {
+      fetch("/api/bancos/cuentas").then((r) => r.json()).then(setCuentasBancarias);
+    }
+  }, [tieneBancos]);
 
   useEffect(() => {
-    if (busqArticulo.length < 1) {
-      setArticulosBusq([]);
-      return;
-    }
-    fetch(`/api/articulos?q=${busqArticulo}`)
-      .then((r) => r.json())
-      .then(setArticulosBusq);
+    if (busqArticulo.length < 1) { setArticulosBusq([]); return; }
+    fetch(`/api/articulos?q=${busqArticulo}`).then((r) => r.json()).then(setArticulosBusq);
   }, [busqArticulo]);
+
+  // Limpiar cuenta bancaria al cambiar medio de pago
+  useEffect(() => {
+    if (!["CHEQUE", "TRANSFERENCIA"].includes(formPago.medioPago)) {
+      setFormPago((prev) => ({ ...prev, cuentaBancariaId: "" }));
+    }
+  }, [formPago.medioPago]);
 
   function agregarArticulo(a: Articulo) {
     const impuesto = impuestos.find((i) => i.id === a.impuestoId);
     setDetalles((prev) => [
       ...prev,
       {
-        articuloId: a.id,
+        articuloId:     a.id,
         nombreArticulo: a.nombre,
-        unidadMedida: a.unidadMedida,
-        cantidad: 1,
-        precioUnitario: a.precioCompra || 0,
-        descuento: 0,
-        impuestoId: a.impuestoId || "",
-        porcentajeIva: impuesto?.porcentaje || 0,
-        subtotal: a.precioCompra || 0,
+        unidadMedida:   a.unidadMedida,
+        cantidad:        1,
+        precioUnitario:  a.precioCompra || 0,
+        descuento:       0,
+        impuestoId:      a.impuestoId || "",
+        porcentajeIva:   impuesto?.porcentaje || 0,
+        subtotal:        a.precioCompra || 0,
       },
     ]);
     setBusqArticulo("");
     setShowBusq(false);
   }
 
-  function actualizarDetalle(
-    idx: number,
-    campo: string,
-    valor: number | string,
-  ) {
+  function actualizarDetalle(idx: number, campo: string, valor: number | string) {
     setDetalles((prev) =>
       prev.map((d, i) => {
         if (i !== idx) return d;
@@ -183,33 +183,21 @@ export default function NuevaCompraPage() {
     setDetalles((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  // Totales
-  const subtotalBruto = detalles.reduce((a, d) => a + d.subtotal, 0);
+  const subtotalBruto  = detalles.reduce((a, d) => a + d.subtotal, 0);
   const descuentoMonto = subtotalBruto * (cabecera.descuento / 100);
-  const subtotalNeto = subtotalBruto - descuentoMonto;
-  const totalIva5 = detalles
-    .filter((d) => d.porcentajeIva === 5)
-    .reduce((a, d) => a + calcIVA(d.subtotal, 5), 0);
-  const totalIva10 = detalles
-    .filter((d) => d.porcentajeIva === 10)
-    .reduce((a, d) => a + calcIVA(d.subtotal, 10), 0);
-  const total = subtotalNeto;
-
+  const subtotalNeto   = subtotalBruto - descuentoMonto;
+  const totalIva5      = detalles.filter((d) => d.porcentajeIva === 5).reduce((a, d) => a + calcIVA(d.subtotal, 5), 0);
+  const totalIva10     = detalles.filter((d) => d.porcentajeIva === 10).reduce((a, d) => a + calcIVA(d.subtotal, 10), 0);
+  const total          = subtotalNeto;
   const monedaSeleccionada = monedas.find((m) => m.id === cabecera.monedaId);
 
+  // ── ¿El pago requiere cuenta bancaria? Solo Pro + CHEQUE/TRANSFERENCIA ──
+  const pagoRequiereCuenta = tieneBancos && ["CHEQUE", "TRANSFERENCIA"].includes(formPago.medioPago);
+
   async function guardar(estado: "BORRADOR" | "CONFIRMADA") {
-    if (!cabecera.proveedorId) {
-      setError("Seleccioná un proveedor");
-      return;
-    }
-    if (!cabecera.almacenId) {
-      setError("Seleccioná un almacén");
-      return;
-    }
-    if (detalles.length === 0) {
-      setError("Agregá al menos un artículo");
-      return;
-    }
+    if (!cabecera.proveedorId) { setError("Seleccioná un proveedor"); return; }
+    if (!cabecera.almacenId)   { setError("Seleccioná un almacén"); return; }
+    if (detalles.length === 0) { setError("Agregá al menos un artículo"); return; }
 
     setGuardando(true);
     setError("");
@@ -223,34 +211,25 @@ export default function NuevaCompraPage() {
         subtotal: subtotalNeto,
         total,
         detalles: detalles.map((d) => ({
-          articuloId: d.articuloId,
-          impuestoId: d.impuestoId || null,
+          articuloId:    d.articuloId,
+          impuestoId:    d.impuestoId || null,
           porcentajeIva: d.porcentajeIva,
-          cantidad: d.cantidad,
+          cantidad:       d.cantidad,
           precioUnitario: d.precioUnitario,
-          descuento: d.descuento,
+          descuento:      d.descuento,
         })),
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-
-      // Si es contado y confirmada → abrir modal de pago
-      const condicion = condiciones.find(
-        (c) => c.id === cabecera.condicionPagoId,
-      );
+      const condicion = condiciones.find((c) => c.id === cabecera.condicionPagoId);
       if (estado === "CONFIRMADA" && condicion && condicion.dias === 0) {
-        setCompraCreada({
-          id: data.id,
-          total: data.total,
-          nroComprobante: data.nroComprobante,
-        });
+        setCompraCreada({ id: data.id, total: data.total, nroComprobante: data.nroComprobante });
         setShowModalPago(true);
         setGuardando(false);
         return;
       }
-
       router.push("/compras");
     } else {
       try {
@@ -265,18 +244,26 @@ export default function NuevaCompraPage() {
 
   async function registrarPago() {
     if (!compraCreada) return;
+    // Validar cuenta bancaria si es requerida
+    if (pagoRequiereCuenta && !formPago.cuentaBancariaId) {
+      setError("Seleccioná la cuenta bancaria desde donde se realizará el pago");
+      return;
+    }
     setGuardandoPago(true);
+    setError("");
 
     const res = await fetch("/api/compras/pagos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        compraId: compraCreada.id,
-        fecha: new Date().toISOString().split("T")[0],
-        monto: compraCreada.total,
-        medioPago: formPago.medioPago,
-        nroReferencia: formPago.nroReferencia || null,
-        observacion: formPago.observacion || null,
+        compraId:         compraCreada.id,
+        fecha:            new Date().toISOString().split("T")[0],
+        monto:            compraCreada.total,
+        medioPago:        formPago.medioPago,
+        nroReferencia:    formPago.nroReferencia    || null,
+        observacion:      formPago.observacion      || null,
+        // Solo enviar si tiene bancos y corresponde
+        cuentaBancariaId: pagoRequiereCuenta ? formPago.cuentaBancariaId : null,
       }),
     });
 
@@ -295,173 +282,96 @@ export default function NuevaCompraPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link
-          href="/compras"
-          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
+        <Link href="/compras" className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Nueva compra</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Registrá una factura de compra
-          </p>
+          <p className="text-gray-500 text-sm mt-0.5">Registrá una factura de compra</p>
         </div>
       </div>
 
       <div className="space-y-4">
         {/* ── CABECERA ── */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">
-            Datos del comprobante
-          </h2>
-
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Datos del comprobante</h2>
           <div className="grid grid-cols-3 gap-4">
+
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Proveedor *
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Proveedor *</label>
               <div className="relative">
-                <select
-                  value={cabecera.proveedorId}
-                  onChange={(e) =>
-                    setCabecera({ ...cabecera, proveedorId: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.proveedorId}
+                  onChange={(e) => setCabecera({ ...cabecera, proveedorId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná un proveedor</option>
-                  {proveedores.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre}
-                    </option>
-                  ))}
+                  {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Fecha *
-              </label>
-              <input
-                type="date"
-                value={cabecera.fecha}
-                onChange={(e) =>
-                  setCabecera({ ...cabecera, fecha: e.target.value })
-                }
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+              <label className="block text-xs font-medium text-gray-700 mb-1">Fecha *</label>
+              <input type="date" value={cabecera.fecha}
+                onChange={(e) => setCabecera({ ...cabecera, fecha: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tipo comprobante
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Tipo comprobante</label>
               <div className="relative">
-                <select
-                  value={cabecera.tipoComprobante}
-                  onChange={(e) =>
-                    setCabecera({
-                      ...cabecera,
-                      tipoComprobante: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
-                  {TIPOS_COMPROBANTE.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
+                <select value={cabecera.tipoComprobante}
+                  onChange={(e) => setCabecera({ ...cabecera, tipoComprobante: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
+                  {TIPOS_COMPROBANTE.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Nro. comprobante
-              </label>
-              <input
-                value={cabecera.nroComprobante}
-                onChange={(e) =>
-                  setCabecera({ ...cabecera, nroComprobante: e.target.value })
-                }
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nro. comprobante</label>
+              <input value={cabecera.nroComprobante}
+                onChange={(e) => setCabecera({ ...cabecera, nroComprobante: e.target.value })}
                 placeholder="001-001-0000001"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Almacén *
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Almacén *</label>
               <div className="relative">
-                <select
-                  value={cabecera.almacenId}
-                  onChange={(e) =>
-                    setCabecera({ ...cabecera, almacenId: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.almacenId}
+                  onChange={(e) => setCabecera({ ...cabecera, almacenId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná un almacén</option>
-                  {almacenes.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nombre}
-                    </option>
-                  ))}
+                  {almacenes.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Condición de pago
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Condición de pago</label>
               <div className="relative">
-                <select
-                  value={cabecera.condicionPagoId}
-                  onChange={(e) =>
-                    setCabecera({
-                      ...cabecera,
-                      condicionPagoId: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.condicionPagoId}
+                  onChange={(e) => setCabecera({ ...cabecera, condicionPagoId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná condición</option>
-                  {condiciones.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
+                  {condiciones.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Moneda
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Moneda</label>
               <div className="relative">
-                <select
-                  value={cabecera.monedaId}
-                  onChange={(e) =>
-                    setCabecera({ ...cabecera, monedaId: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none"
-                >
+                <select value={cabecera.monedaId}
+                  onChange={(e) => setCabecera({ ...cabecera, monedaId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent appearance-none">
                   <option value="">Seleccioná moneda</option>
-                  {monedas.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.codigo} — {m.nombre}
-                    </option>
-                  ))}
+                  {monedas.map((m) => <option key={m.id} value={m.id}>{m.codigo} — {m.nombre}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
@@ -472,33 +382,19 @@ export default function NuevaCompraPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Tipo de cambio (Gs. por 1 {monedaSeleccionada.codigo})
                 </label>
-                <input
-                  type="number"
-                  value={cabecera.tipoCambio}
-                  onChange={(e) =>
-                    setCabecera({
-                      ...cabecera,
-                      tipoCambio: parseFloat(e.target.value) || 1,
-                    })
-                  }
+                <input type="number" value={cabecera.tipoCambio}
+                  onChange={(e) => setCabecera({ ...cabecera, tipoCambio: parseFloat(e.target.value) || 1 })}
                   placeholder="7500"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-                />
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
               </div>
             )}
 
             <div className="col-span-3">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Observación
-              </label>
-              <input
-                value={cabecera.observacion}
-                onChange={(e) =>
-                  setCabecera({ ...cabecera, observacion: e.target.value })
-                }
+              <label className="block text-xs font-medium text-gray-700 mb-1">Observación</label>
+              <input value={cabecera.observacion}
+                onChange={(e) => setCabecera({ ...cabecera, observacion: e.target.value })}
                 placeholder="Observaciones opcionales"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
             </div>
           </div>
         </div>
@@ -508,17 +404,11 @@ export default function NuevaCompraPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700">Ítems</h2>
             <div className="relative">
-              <button
-                onClick={() => setShowBusq(!showBusq)}
+              <button onClick={() => setShowBusq(!showBusq)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors"
                 style={{ backgroundColor: colorPrimario }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = colorSecundario)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colorPrimario)
-                }
-              >
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colorSecundario)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colorPrimario)}>
                 <Plus className="w-4 h-4" /> Agregar ítem
               </button>
 
@@ -527,35 +417,23 @@ export default function NuevaCompraPage() {
                   <div className="p-3 border-b border-gray-100">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        autoFocus
-                        value={busqArticulo}
+                      <input autoFocus value={busqArticulo}
                         onChange={(e) => setBusqArticulo(e.target.value)}
                         placeholder="Buscar artículo..."
-                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      />
+                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none" />
                     </div>
                   </div>
                   <div className="max-h-48 overflow-y-auto">
                     {articulosBusq.length === 0 ? (
                       <p className="text-xs text-gray-400 text-center py-4">
-                        {busqArticulo
-                          ? "Sin resultados"
-                          : "Escribí para buscar"}
+                        {busqArticulo ? "Sin resultados" : "Escribí para buscar"}
                       </p>
                     ) : (
                       articulosBusq.map((a) => (
-                        <button
-                          key={a.id}
-                          onClick={() => agregarArticulo(a)}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
-                        >
-                          <p className="text-sm font-medium text-gray-900">
-                            {a.nombre}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {a.codigo} · {a.unidadMedida}
-                          </p>
+                        <button key={a.id} onClick={() => agregarArticulo(a)}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                          <p className="text-sm font-medium text-gray-900">{a.nombre}</p>
+                          <p className="text-xs text-gray-400">{a.codigo} · {a.unidadMedida}</p>
                         </button>
                       ))
                     )}
@@ -568,33 +446,19 @@ export default function NuevaCompraPage() {
           {detalles.length === 0 ? (
             <div className="text-center py-10 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
               <p className="text-sm">No hay ítems agregados</p>
-              <p className="text-xs mt-1">
-                Hacé click en "Agregar ítem" para empezar
-              </p>
+              <p className="text-xs mt-1">Hacé click en "Agregar ítem" para empezar</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left text-xs font-medium text-gray-500 pb-2">
-                      Artículo
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-24">
-                      Cantidad
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-32">
-                      Precio unit.
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-20">
-                      Desc. %
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-2 w-32 pl-3">
-                      Impuesto
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-32">
-                      Subtotal
-                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-2">Artículo</th>
+                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-24">Cantidad</th>
+                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-32">Precio unit.</th>
+                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-20">Desc. %</th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-2 w-32 pl-3">Impuesto</th>
+                    <th className="text-right text-xs font-medium text-gray-500 pb-2 w-32">Subtotal</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -602,87 +466,40 @@ export default function NuevaCompraPage() {
                   {detalles.map((d, i) => (
                     <tr key={i} className="border-b border-gray-50">
                       <td className="py-2 pr-3">
-                        <p className="text-sm font-medium text-gray-900">
-                          {d.nombreArticulo}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {d.unidadMedida}
-                        </p>
+                        <p className="text-sm font-medium text-gray-900">{d.nombreArticulo}</p>
+                        <p className="text-xs text-gray-400">{d.unidadMedida}</p>
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={d.cantidad}
-                          onChange={(e) =>
-                            actualizarDetalle(
-                              i,
-                              "cantidad",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900  focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                        <input type="number" min="0.01" step="0.01" value={d.cantidad}
+                          onChange={(e) => actualizarDetalle(i, "cantidad", parseFloat(e.target.value) || 0)}
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number"
-                          min="0"
-                          value={d.precioUnitario}
-                          onChange={(e) =>
-                            actualizarDetalle(
-                              i,
-                              "precioUnitario",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900  focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                        <input type="number" min="0" value={d.precioUnitario}
+                          onChange={(e) => actualizarDetalle(i, "precioUnitario", parseFloat(e.target.value) || 0)}
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={d.descuento}
-                          onChange={(e) =>
-                            actualizarDetalle(
-                              i,
-                              "descuento",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900  focus:outline-none focus:ring-2 focus:border-transparent"
-                        />
+                        <input type="number" min="0" max="100" value={d.descuento}
+                          onChange={(e) => actualizarDetalle(i, "descuento", parseFloat(e.target.value) || 0)}
+                          className="w-full text-right px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent" />
                       </td>
                       <td className="py-2 px-1 pl-3">
                         <div className="relative">
-                          <select
-                            value={d.impuestoId}
-                            onChange={(e) =>
-                              actualizarDetalle(i, "impuestoId", e.target.value)
-                            }
-                            className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none appearance-none"
-                          >
+                          <select value={d.impuestoId}
+                            onChange={(e) => actualizarDetalle(i, "impuestoId", e.target.value)}
+                            className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none appearance-none">
                             <option value="">Sin impuesto</option>
-                            {impuestos.map((imp) => (
-                              <option key={imp.id} value={imp.id}>
-                                {imp.nombre}
-                              </option>
-                            ))}
+                            {impuestos.map((imp) => <option key={imp.id} value={imp.id}>{imp.nombre}</option>)}
                           </select>
                         </div>
                       </td>
                       <td className="py-2 px-1 text-right text-sm font-medium text-gray-900">
-                        {monedaSeleccionada?.simbolo || "Gs."}{" "}
-                        {formatGs(d.subtotal)}
+                        {monedaSeleccionada?.simbolo || "Gs."} {formatGs(d.subtotal)}
                       </td>
                       <td className="py-2 pl-2">
-                        <button
-                          onClick={() => eliminarDetalle(i)}
-                          className="p-1 rounded text-gray-300 hover:text-red-500 transition-colors"
-                        >
+                        <button onClick={() => eliminarDetalle(i)}
+                          className="p-1 rounded text-gray-300 hover:text-red-500 transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -700,58 +517,36 @@ export default function NuevaCompraPage() {
             <div className="w-72 space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Subtotal</span>
-                <span>
-                  {monedaSeleccionada?.simbolo || "Gs."}{" "}
-                  {formatGs(subtotalBruto)}
-                </span>
+                <span>{monedaSeleccionada?.simbolo || "Gs."} {formatGs(subtotalBruto)}</span>
               </div>
               {totalIva5 > 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>IVA 5%</span>
-                  <span>Gs. {formatGs(totalIva5)}</span>
+                  <span>IVA 5%</span><span>Gs. {formatGs(totalIva5)}</span>
                 </div>
               )}
               {totalIva10 > 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>IVA 10%</span>
-                  <span>Gs. {formatGs(totalIva10)}</span>
+                  <span>IVA 10%</span><span>Gs. {formatGs(totalIva10)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <span>Descuento general</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={cabecera.descuento}
-                    onChange={(e) =>
-                      setCabecera({
-                        ...cabecera,
-                        descuento: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="w-14 text-center px-1 py-0.5 rounded border border-gray-200 text-xs"
-                  />
+                  <input type="number" min="0" max="100" value={cabecera.descuento}
+                    onChange={(e) => setCabecera({ ...cabecera, descuento: parseFloat(e.target.value) || 0 })}
+                    className="w-14 text-center px-1 py-0.5 rounded border border-gray-200 text-xs" />
                   <span className="text-xs">%</span>
                 </div>
-                {descuentoMonto > 0 && (
-                  <span className="text-red-500">
-                    - Gs. {formatGs(descuentoMonto)}
-                  </span>
-                )}
+                {descuentoMonto > 0 && <span className="text-red-500">- Gs. {formatGs(descuentoMonto)}</span>}
               </div>
               <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
-                <span>
-                  {monedaSeleccionada?.simbolo || "Gs."} {formatGs(total)}
-                </span>
+                <span>{monedaSeleccionada?.simbolo || "Gs."} {formatGs(total)}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── ACCIONES ── */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
             <p className="text-red-600 text-sm">{error}</p>
@@ -759,30 +554,23 @@ export default function NuevaCompraPage() {
         )}
 
         <div className="flex gap-3 justify-end pb-6">
-          <Link
-            href="/compras"
-            className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-          >
+          <Link href="/compras"
+            className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
             Cancelar
           </Link>
-          <button
-            onClick={() => guardar("BORRADOR")}
-            disabled={guardando}
+          <button onClick={() => guardar("BORRADOR")} disabled={guardando}
             className="px-6 py-2.5 rounded-lg text-sm font-medium border-2 transition-colors disabled:opacity-50"
-            style={{ borderColor: colorPrimario, color: colorPrimario }}
-          >
+            style={{ borderColor: colorPrimario, color: colorPrimario }}>
             Guardar borrador
           </button>
-          <button
-            onClick={() => guardar("CONFIRMADA")}
-            disabled={guardando}
+          <button onClick={() => guardar("CONFIRMADA")} disabled={guardando}
             className="px-6 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-            style={{ backgroundColor: colorPrimario }}
-          >
+            style={{ backgroundColor: colorPrimario }}>
             {guardando ? "Guardando..." : "Confirmar compra"}
           </button>
         </div>
       </div>
+
       {/* ── MODAL PAGO CONTADO ── */}
       {showModalPago && compraCreada && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -792,14 +580,11 @@ export default function NuevaCompraPage() {
               <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3">
                 <span className="text-2xl">🧾</span>
               </div>
-              <h2 className="text-lg font-bold text-gray-900">
-                Registrar pago
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900">Registrar pago</h2>
               <p className="text-gray-500 text-sm mt-1">
                 Factura {compraCreada.nroComprobante || "—"} —{" "}
                 <span className="font-semibold text-gray-900">
-                  Gs.{" "}
-                  {new Intl.NumberFormat("es-PY").format(compraCreada.total)}
+                  Gs. {new Intl.NumberFormat("es-PY").format(compraCreada.total)}
                 </span>
               </p>
             </div>
@@ -807,84 +592,78 @@ export default function NuevaCompraPage() {
             <div className="space-y-4">
               {/* Medio de pago */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Medio de pago *
-                </label>
+                <label className="block text-xs font-medium text-gray-700 mb-2">Medio de pago *</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    "EFECTIVO",
-                    "CHEQUE",
-                    "TRANSFERENCIA",
-                    "TARJETA",
-                    "OTRO",
-                  ].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setFormPago({ ...formPago, medioPago: m })}
+                  {["EFECTIVO", "CHEQUE", "TRANSFERENCIA", "TARJETA", "OTRO"].map((m) => (
+                    <button key={m} type="button"
+                      onClick={() => setFormPago({ ...formPago, medioPago: m, cuentaBancariaId: "" })}
                       className="py-2 rounded-lg text-xs font-medium border-2 transition-all"
-                      style={
-                        formPago.medioPago === m
-                          ? {
-                              borderColor: colorPrimario,
-                              backgroundColor: `${colorPrimario}10`,
-                              color: colorPrimario,
-                            }
-                          : { borderColor: "#e5e7eb", color: "#6b7280" }
-                      }
-                    >
+                      style={formPago.medioPago === m
+                        ? { borderColor: colorPrimario, backgroundColor: `${colorPrimario}10`, color: colorPrimario }
+                        : { borderColor: "#e5e7eb", color: "#6b7280" }
+                      }>
                       {m}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Nro referencia si aplica */}
-              {(formPago.medioPago === "CHEQUE" ||
-                formPago.medioPago === "TRANSFERENCIA") && (
+              {/* Nro referencia */}
+              {(formPago.medioPago === "CHEQUE" || formPago.medioPago === "TRANSFERENCIA") && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    {formPago.medioPago === "CHEQUE"
-                      ? "Nro. de cheque"
-                      : "Nro. de transferencia"}
+                    {formPago.medioPago === "CHEQUE" ? "Nro. de cheque" : "Nro. de transferencia"}
                   </label>
-                  <input
-                    value={formPago.nroReferencia}
-                    onChange={(e) =>
-                      setFormPago({
-                        ...formPago,
-                        nroReferencia: e.target.value,
-                      })
-                    }
-                    placeholder={
-                      formPago.medioPago === "CHEQUE" ? "000123" : "REF-123456"
-                    }
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-                  />
+                  <input value={formPago.nroReferencia}
+                    onChange={(e) => setFormPago({ ...formPago, nroReferencia: e.target.value })}
+                    placeholder={formPago.medioPago === "CHEQUE" ? "000123" : "REF-123456"}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent" />
                 </div>
               )}
 
-              {/* Observacion */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Observación
-                </label>
-                <input
-                  value={formPago.observacion}
-                  onChange={(e) =>
-                    setFormPago({ ...formPago, observacion: e.target.value })
-                  }
-                  placeholder="Opcional"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
-                />
-              </div>
+              {/* ── CUENTA BANCARIA — solo plan Pro con módulo BANCOS ── */}
+              {pagoRequiereCuenta && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    {formPago.medioPago === "CHEQUE"
+                      ? "Cuenta bancaria desde donde se emite el cheque *"
+                      : "Cuenta bancaria desde donde se transfiere *"}
+                  </label>
+                  {cuentasBancarias.length === 0 ? (
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                      <p className="text-orange-600 text-xs">
+                        No hay cuentas bancarias configuradas.{" "}
+                        <Link href="/bancos/cuentas/nueva" className="font-medium underline">
+                          Configurar cuenta
+                        </Link>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select value={formPago.cuentaBancariaId}
+                        onChange={(e) => setFormPago({ ...formPago, cuentaBancariaId: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none appearance-none">
+                        <option value="">Seleccioná una cuenta</option>
+                        {cuentasBancarias.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.banco.nombre} — {c.nroCuenta}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    💡 Se creará un movimiento bancario pendiente para conciliar después.
+                  </p>
+                </div>
+              )}
 
-              {/* Info caja */}
+              {/* Info efectivo */}
               {formPago.medioPago === "EFECTIVO" && (
                 <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
                   <p className="text-blue-700 text-xs">
-                    💡 Si hay una caja abierta, este pago se registrará
-                    automáticamente como egreso.
+                    💡 Si hay una caja abierta, este pago se registrará automáticamente como egreso.
                   </p>
                 </div>
               )}
@@ -897,18 +676,13 @@ export default function NuevaCompraPage() {
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => router.push("/compras")}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => router.push("/compras")}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
                 Omitir
               </button>
-              <button
-                onClick={registrarPago}
-                disabled={guardandoPago}
+              <button onClick={registrarPago} disabled={guardandoPago}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: colorPrimario }}
-              >
+                style={{ backgroundColor: colorPrimario }}>
                 {guardandoPago ? "Registrando..." : "Confirmar pago"}
               </button>
             </div>

@@ -70,6 +70,7 @@ model Empresa {
   cheques             Cheque[]
   movimientosBancarios MovimientoBancario[]
   onboardingCompletado Boolean @default(false)
+  conciliaciones      ConciliacionBancaria[]
 }
 
 model PasswordResetToken {
@@ -668,6 +669,11 @@ enum EstadoMovimientoBancario {
   CONCILIADO
 }
 
+enum EstadoConciliacion {
+  BORRADOR
+  CERRADA
+}
+
 model Banco {
   id       String  @id @default(cuid())
   nombre   String
@@ -693,6 +699,7 @@ model CuentaBancaria {
   movimientos   MovimientoBancario[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  conciliaciones      ConciliacionBancaria[]
 
   @@index([empresaId])
 }
@@ -742,8 +749,73 @@ model MovimientoBancario {
   empresaId       String
   empresa         Empresa   @relation(fields: [empresaId], references: [id])
   createdAt       DateTime  @default(now())
+  conciliacionId      String?
+  conciliacion        ConciliacionBancaria? @relation(fields: [conciliacionId], references: [id])
 
   @@index([cuentaId])
   @@index([empresaId])
   @@index([fecha])
+  @@index([conciliacionId])
+}
+
+model ConciliacionBancaria {
+  id               String              @id @default(cuid())
+  empresaId        String
+  empresa          Empresa             @relation(fields: [empresaId], references: [id])
+  cuentaId         String
+  cuenta           CuentaBancaria      @relation(fields: [cuentaId], references: [id])
+
+  // Período
+  periodo          String              // "2024-01" formato YYYY-MM
+  fechaDesde       DateTime
+  fechaHasta       DateTime
+
+  // Saldos
+  saldoExtracto    Float               // saldo según extracto bancario
+  saldoLibros      Float               // saldo según libros (calculado)
+  diferencia       Float               @default(0)
+
+  // Estado
+  estado           EstadoConciliacion  @default(BORRADOR)
+  notas            String?
+  cerradaEn        DateTime?
+  cerradaPor       String?             // nombre del usuario
+
+  // Movimientos vinculados
+  movimientos      MovimientoBancario[]
+
+  // Ajustes manuales
+  ajustes          AjusteConciliacion[]
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([empresaId, cuentaId, periodo])
+  @@index([empresaId])
+  @@index([cuentaId])
+}
+
+model AjusteConciliacion {
+  id               String               @id @default(cuid())
+  conciliacionId   String
+  conciliacion     ConciliacionBancaria @relation(fields: [conciliacionId], references: [id], onDelete: Cascade)
+
+  tipo             TipoAjuste
+  descripcion      String
+  monto            Float                // positivo = suma, negativo = resta
+  fecha            DateTime
+  creadoPor        String?
+
+  createdAt        DateTime             @default(now())
+
+  @@index([conciliacionId])
+}
+
+enum TipoAjuste {
+  NOTA_CREDITO_BANCO
+  NOTA_DEBITO_BANCO
+  DEPOSITO_EN_TRANSITO
+  CHEQUE_EN_CIRCULACION
+  ERROR_REGISTRO
+  OTRO
 }

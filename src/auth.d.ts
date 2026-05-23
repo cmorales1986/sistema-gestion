@@ -16,7 +16,7 @@ declare module 'next-auth' {
       planId:          string
       modulos:         string[]
       reportes:        string[]
-      onboarding: boolean
+      onboarding:      boolean
       limites: {
         proveedores:    number | null
         clientes:       number | null
@@ -31,23 +31,24 @@ declare module 'next-auth' {
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    id:              string
-    rol:             string
-    empresaId:       string
-    empresaNombre:   string
-    colorPrimario:   string
-    colorSecundario: string
-    logoUrl:         string | null
-    planNombre:      string
-    planId:          string
-    modulos:         string  // guardado como string separado por comas
-    reportes:        string
-    limProv:         number
-    limCli:          number
-    limArt:          number
-    onboarding: boolean
-    limUsu:          number
-    limFC:           number
-    limFV:           number
+    id:               string
+    rol:              string
+    empresaId:        string
+    empresaNombre:    string
+    colorPrimario:    string
+    colorSecundario:  string
+    logoUrl:          string | null
+    planNombre:       string
+    planId:           string
+    modulos:          string   // guardado como string separado por comas
+    reportes:         string
+    onboarding:       boolean
+    limProv:          number
+    limCli:           number
+    limArt:           number
+    limUsu:           number
+    limFC:            number
+    limFV:            number
+    planRefreshedAt?: number   // timestamp unix del último refresco
   }
 }
