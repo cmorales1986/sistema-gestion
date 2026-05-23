@@ -12,9 +12,9 @@ type Props = {
 
 export default function Loading({ texto, size = 'md' }: Props) {
   const sizes = {
-    sm: 'w-8 h-8',
-    md: 'w-12 h-12',
-    lg: 'w-16 h-16',
+    sm: 'w-15 h-15',
+    md: 'w-20 h-20',
+    lg: 'w-25 h-25',
   }
 
   return (

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import Sidebar from "@/components/sidebar";
 import Header from "@/components/header";
 import TrialBanner from "@/components/trial-banner";
+import ChatAsistente from '@/components/chat-asistente'
 
 export default async function MainLayout({
   children,
@@ -20,6 +21,7 @@ export default async function MainLayout({
             <Header />
             <TrialBanner />
             <main className="flex-1 p-6">{children}</main>
+            <ChatAsistente />
           </div>
         </div>
       </div>

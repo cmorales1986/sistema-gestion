@@ -105,6 +105,7 @@ model Usuario {
   empresa   Empresa    @relation(fields: [empresaId], references: [id])
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  tourCompletado Boolean @default(false)
   aperturasRealizadas AperturaCaja[] @relation("AperturaUsuario")
   cierresRealizados   AperturaCaja[] @relation("CierreUsuario")
   auditorias Auditoria[]
