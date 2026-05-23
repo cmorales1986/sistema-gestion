@@ -97,8 +97,7 @@ export default function OnboardingPage() {
       body: JSON.stringify(body),
     });
 
-    await update();
-    router.push("/dashboard");
+    window.location.href = "/dashboard"
   }
 
   const progressPct = ((paso - 1) / (TOTAL_PASOS - 1)) * 100;

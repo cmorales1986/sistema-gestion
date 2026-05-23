@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import Loading from '@/components/loading'
 
 type DashboardData = {
   comprasMes: { total: number; count: number };
@@ -79,7 +80,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32 text-gray-400 text-sm">
-        Cargando...
+        <Loading texto="Cargando dashboard..." />
       </div>
     );
   }
